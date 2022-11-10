@@ -1,0 +1,5 @@
+"0"," if(!is.numeric(unlist(tabVU))) print(""error, change seed_no to any random number"")"
+"0"," # if(is.na(any(tabVU))) print(""error, change seed_no to any random number"")"
+"0",""
+"0",""
+"0"," "
