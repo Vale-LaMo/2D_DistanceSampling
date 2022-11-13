@@ -1,0 +1,5 @@
+"0",""
+"0","ystart = params$trunc_forw_dist_m"
+"0","data_trunc <- "
+"0","  data_trunc %>% "
+"0","  filter(forw_dist <= ystart)"

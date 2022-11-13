@@ -1,0 +1,1 @@
+"0","plotfit.y(y[x<=w & y<=ystart],x,fitVU,nclass=20);rug(x=y[x<=w])"

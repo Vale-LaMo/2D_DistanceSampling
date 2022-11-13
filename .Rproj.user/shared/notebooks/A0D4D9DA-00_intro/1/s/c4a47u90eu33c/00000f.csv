@@ -2,3 +2,4 @@
 "0","source(""functions/com_hfunctions.R"")"
 "0","source(""functions/com_pifunctions.R"")"
 "0","source(""functions/com_likelihoodutilities.R"")"
+"0","source(""functions/GoFy_vlm.R"") # custom GoFy function, modified by VLM 2022-11-11"

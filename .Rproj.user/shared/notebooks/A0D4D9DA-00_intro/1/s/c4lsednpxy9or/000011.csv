@@ -1,0 +1,1 @@
+"0","hist(y,breaks=seq(0,max(na.omit(y)),length=16),xlab=fdlab,main="""")"

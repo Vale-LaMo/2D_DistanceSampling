@@ -1,0 +1,1 @@
+"0","hist(data_clean$perp_dist, main = """", xlab = ""Perpendicular distance (m)"")"

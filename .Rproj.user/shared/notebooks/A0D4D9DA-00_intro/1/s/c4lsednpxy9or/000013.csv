@@ -1,0 +1,1 @@
+"0","hist(x,breaks=seq(0,max(na.omit(x)),length=12),xlab=pdlab,main="""")"
