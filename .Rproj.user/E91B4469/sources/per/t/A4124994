@@ -3,7 +3,7 @@
     "path": "C:/Users/valen/git/2D_DistanceSampling/00_intro.Rmd",
     "project_path": "00_intro.Rmd",
     "type": "r_markdown",
-    "hash": "39780796",
+    "hash": "948514497",
     "contents": "",
     "dirty": false,
     "created": 1668088519372.0,
@@ -13,15 +13,16 @@
         "chunk_output_type": "inline",
         "source_window_id": "",
         "Source": "Source",
-        "cursorPosition": "163,0",
-        "scrollLine": "162"
+        "cursorPosition": "161,35",
+        "scrollLine": "150",
+        "docOutlineVisible": "0"
     },
     "folds": "",
-    "lastKnownWriteTime": 1668188325,
+    "lastKnownWriteTime": 1671801125,
     "encoding": "UTF-8",
     "collab_server": "",
     "source_window": "",
-    "last_content_update": 1668188325171,
+    "last_content_update": 1671801125855,
     "read_only": false,
     "read_only_alternatives": []
 }

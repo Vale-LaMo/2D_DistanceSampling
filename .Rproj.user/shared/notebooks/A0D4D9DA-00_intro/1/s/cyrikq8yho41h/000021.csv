@@ -1,6 +1,0 @@
-"0",""
-"0","no_data <- round(params$trunc_perp_dist*length(data_clean$perp_dist)/100,0) # no. data to be deleted"
-"0","threshold <- sort(data_clean$perp_dist, decreasing = TRUE)[no_data+1] # threshold"
-"0","data_trunc <- "
-"0","  data_clean %>% "
-"0","  filter(perp_dist <= threshold)"
