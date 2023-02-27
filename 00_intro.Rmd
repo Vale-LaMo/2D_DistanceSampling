@@ -49,8 +49,8 @@ First of all, we need to import the data. The dataset (Excel file) should includ
 - `cluster_size`: number of animals in the group (optional, only if the group has been detected)
 - `perp_dist`: perpedicular distance to the observer (optional, only if the group has been detected)
 - `forw_dist`: forward distance to the observer (optional, only if the group has been detected)
-- `id_record`: a progressive number to identify each record
-All optional fields can have empty cells (or *NA*) in the Excel file. On the contrary, *NA*s are not admitted in the fields: `area`, `transect`, `transect_length`, `detected`, `id_record`.
+- `object`: a progressive number to identify each record
+All optional fields can have empty cells (or *NA*) in the Excel file. On the contrary, *NA*s are not admitted in the fields: `area`, `transect`, `transect_length`, `detected`, `object`.
 
 *Please note that when reading the file, we specify the column types: make sure to maintain the recommended order of the columns to avoid errors in the procedure; additional columns could of course be added, or the order changed, but then you will have to modify the `col_types` argument accordingly*
 
@@ -94,6 +94,7 @@ threshold <- sort(data_clean$perp_dist, decreasing = TRUE)[no_data+1] # threshol
 data_trunc <- 
   data_clean %>% 
   filter(perp_dist <= threshold)
+save(data_trunc, file = "output/data_trunc.RData", compress = FALSE)
 ```
 
 The first histogram shows we have a very long tail for perpendicular distances, and the boxplot confirms that we have outliers. Using a truncation distance of `r params$trunc_perp_dist`%, we remove `r no_data` records.   
@@ -155,6 +156,7 @@ debug=FALSE
  }
 tabVU
 if(!is.numeric(unlist(tabVU))) print("error, change seed_no to any random number")
+save(fitVU, file = "output/fitVU.RData", compress = FALSE)
 ```
 
 ```{r}
