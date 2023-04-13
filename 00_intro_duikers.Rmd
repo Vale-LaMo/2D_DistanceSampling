@@ -3,7 +3,6 @@ title: "2D distance sampling"
 params:
   seed_no: 16
   trunc_perp_dist: 5
-  input_file: "impala_vlm.xlsx"
 output:
   html_document:
     df_print: paged
@@ -47,9 +46,9 @@ First of all, we need to import the data. The dataset (Excel file) should includ
 - `perp_dist`: perpendicular distance to the observer (only if the group has been detected)
 - `forw_dist`: forward distance to the observer (only if the group has been detected)
 - `cluster_size`: number of animals in the group (optional, only if the group has been detected)
-- `obs_time`: date and time stamp (optional)
-- `X_observer`: x-coord of the observer (optional)
-- `Y_observer`: y-coord of the observer (optional)
+<!-- - `obs_time`: date and time stamp (optional) -->
+<!-- - `X_observer`: x-coord of the observer (optional) -->
+<!-- - `Y_observer`: y-coord of the observer (optional) -->
 
 All optional fields and the distance columns can have empty cells (or *NA*) in the Excel file. On the contrary, *NA*s are not admitted in the fields: `area`, `transect`, `transect_length`, `detected`, `object` (i.e., if the above order is respected, *NAs* are not admitted in the first 5 columns but can be present in the other ones). Values in the `forw_dist` column can also be negative.
 
@@ -57,10 +56,10 @@ All optional fields and the distance columns can have empty cells (or *NA*) in t
 
 ```{r data-loading}
 #### Load dataset
-data <- read_excel(paste("data/",params$input_file,sep=""), #sheet="template_dataset",
-                   col_types = c(rep("numeric", 8),
-                                 "date",
-                                 "text", "text"))
+data <- read_excel("data/duiker.xlsx", #sheet="template_dataset",
+                   col_types = c(rep("numeric", 8)))#,
+                                 # "date",
+                                 # "text", "text"))
 ```
 *The previous messages simply warn us on the presence of some NAs in the columns with numeric data. We will deal with them later but please go back and check your data if you did not expect this to happen.*
 
@@ -85,7 +84,7 @@ data_clean <-
 data_clean$forw_dist <- abs(data_clean$forw_dist) # we make sure all distances are positive (see Discussion for details)
 ```
 
-We now select the truncation distances. For this purpose, we produce histograms and boxplots to identify outliers.
+We now produce histograms and boxplots to identify outliers and we apply a standard 5% truncation:
 
 ```{r truncation-perpendicular-distances}
 hist(data_clean$perp_dist, main = "", xlab = "Perpendicular distance (m)")
@@ -99,7 +98,7 @@ data_trunc <-
 save(data_trunc, file = "output/data_trunc.RData", compress = FALSE)
 ```
 
-The first histogram shows we have a very long tail for perpendicular distances, and the boxplot confirms that we have potential outliers. Using a truncation distance of `r params$trunc_perp_dist`%, we remove `r no_data` records.   
+Using a truncation distance of `r params$trunc_perp_dist`%, we remove `r no_data` records.   
 
 We also produce the histogram and the boxplot for the forward distances:
 
@@ -108,17 +107,15 @@ hist(data_trunc$forw_dist, main = "", xlab = "Forward distance (m)")
 boxplot(data_trunc$forw_dist, ylab = "Forward distance (m)")
 ```
 
-
 If ouliers are detected in the forward distances, they can be removed with the following code (optional):
 
 ```{r}
-# ystart = max(data_trunc$forw_dist) # change this to the desired truncation distance if necessary, e.g. 
-ystart = 150
+ystart = max(data_trunc$forw_dist) # change this to the desired truncation distance if necessary, e.g. 
+# ystart = 65
 data_trunc <- 
   data_trunc %>% 
   filter(forw_dist <= ystart)
 ```
-
 
 
 
@@ -185,7 +182,7 @@ fName = "h1"
 GoFx(fitVU,plot=TRUE)$pvals
 plotfit.y(y[x<=w & y<=ystart],x,fitVU,nclass=20);rug(x=y[x<=w])
 plotfit.smoothfy(fitVU,nclass=32);rug(x=y[x<=w])
-GoFy_vlm(fitVU,plot=TRUE)$pvals # brillantemente risolto
+GoFy_vlm(fitVU,plot=TRUE)$pvals
 
 plotfit.smoothfy(fitVU,xmax=199)
 ``` 
@@ -219,6 +216,7 @@ cbind(no_groups, dens_groups_km2)
 ## Cluster size stats and estimated number of individuals with CV
 
 In order to estimate the number of individuals, we now consider the cluster size data, summarising them and calculating the cluster size standard deviation:
+**Please note that this is going to be = 1 for solitary species (this result can be overlooked)**
 
 ```{r}
 data_clustersize <- 
@@ -246,7 +244,7 @@ data %>%
   dplyr::summarise(no_groups_transect = sum(detected),
                    transect_length = mean(transect_length)) %>% 
   mutate(encounter_rate = no_groups_transect/transect_length) -> res
-res
+# res
 res$no_groups_transect
 cv2_transetti <- (sd(res$encounter_rate)/mean(res$encounter_rate))^2
 (cv_tot <- sqrt(cv2_detfunc + cv2_clustersize + cv2_transetti))

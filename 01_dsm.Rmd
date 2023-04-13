@@ -2,8 +2,6 @@
 title: "Density surface modelling"
 params:
   seed_no: 16
-  trunc_perp_dist: 5
-  trunc_forw_dist_m: 150
   convertion_km_m: 1/1000
 output:
   html_document:
@@ -933,13 +931,16 @@ sum(mod1.pred)
 plot(mod1)
 ```
 
+STOP QUI, L'ANALISI DELLA VARIANZA SI IMPALLA, CERCO POI DI RISOLVERE SUCCESSIVAMENTE
 
 ```{r}
 preddata.var <- split(preddata, 1:nrow(preddata))
 dsm.xy.var <- dsm_var_gam(mod1, pred.data=preddata.var,
                           off.set=preddata$area)
-sinfo$average.p.se <- (phatInterval(fitVU)[2])^2
-summary(dsm.xy.var)
+summary(dsm.xy.var) # questo non funziona
+
+
+
 names(dsm.xy.var)
 dsm.xy.var$pred.var
 ```
@@ -950,6 +951,95 @@ object = dsm.xy.var
 boxplot.coef = 1.5
 alpha=0.05
 
+sinfo$average.p.se <- (phatInterval(fitVU)[2])^2
+
+  # storage
+  sinfo <- list()
+  # save the alpha value for cis
+  sinfo$alpha <- alpha
+
+    ### analytical variance estimation (varprop and gam results)
+    sinfo$varprop <- object$var.prop
+    sinfo$saved <- object
+    sinfo$bootstrap <- object$bootstrap
+
+      # re run the variance calculation, putting everything together
+      pd <- c()
+      off <- c()
+      for(i in seq_len(length(object$pred.data))){
+        pd <- rbind(pd, object$pred.data[[i]])
+        off <- rbind(off, object$off.set[[i]])
+      }
+      object$pred.data <- pd
+      object$off.set <- as.vector(off)
+
+      if(object$var.prop){
+        var.prop <- dsm_var_prop(object$dsm.obj, object$pred.data,
+                                 object$off.set, object$seglen.varname,
+                                 object$type.pred)
+      }else{
+        var.prop <- dsm_var_gam(object$dsm.obj, object$pred.data,object$off.set,
+                                 object$seglen.varname, object$type.pred)
+      }
+
+      sinfo$se <- sqrt(var.prop$pred.var)
+      
+    # grab the predicted values
+    if(length(object$pred)>1){
+      sinfo$pred.est <- sum(unlist(object$pred), na.rm=TRUE)
+    }else{
+      sinfo$pred.est <- object$pred[[1]]
+    }
+
+    # if we're using variance propagation or there is no detection
+    # function, then the CV is fine
+{
+    # if we're just using the GAM variance, then we need to combine using
+    # the delta method
+      ddf.summary <- summary(object$dsm.object$ddf)
+
+      # setup everything to be multi-ddf compatible
+      ddf <- object$dsm.object$ddf
+      
+
+      sinfo$detfct.cv <- c()
+      cvp.sq <- 0
+      for(i in seq_along(ddf)){
+
+        this_ddf <- ddf[[i]]
+        if(all(class(this_ddf)!="fake_ddf")){
+          ddf.summary <- summary(this_ddf) # errore a questo punto, perché è una fake
+
+          this_cvp.sq <- (ddf.summary$average.p.se/
+                          ddf.summary$average.p)^2
+          cvp.sq <- cvp.sq + this_cvp.sq # mi serve il cv di phat che ho già di là
+        }else{
+          this_cvp.sq <- NA
+        }
+        sinfo$detfct.cv <- c(sinfo$detfct.cv, sqrt(this_cvp.sq))
+      }
+
+      sinfo$gam.cv <- sinfo$se/sinfo$pred.est
+
+      sinfo$cv <- sqrt(cvp.sq+sinfo$gam.cv^2)
+
+      # total se
+      sinfo$se <- sinfo$cv*sinfo$pred.est
+    }
+    if(sinfo$varprop){
+      sinfo$model.check <- object$model.check
+    }
+
+  }
+
+  class(sinfo) <- "summary.dsm.var"
+  return(sinfo)
+}
+```
+
+
+
+```{r}
 summary.dsm.var <- function(object, alpha=0.05, boxplot.coef=1.5,
                             bootstrap.subregions=NULL, ...){
 
@@ -1161,9 +1251,6 @@ summary.dsm.var <- function(object, alpha=0.05, boxplot.coef=1.5,
   return(sinfo)
 }
 ```
-
-
-
 
 
 
