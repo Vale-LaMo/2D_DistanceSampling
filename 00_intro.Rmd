@@ -41,7 +41,7 @@ First of all, we need to import the data. The dataset (Excel file) should includ
 
 - `area`: surface of the study area, in km2
 - `transect`: transect label (it could be a number or a letter)
-- `transect_length`: length of the transect, in m
+- `transect_length`: length of the transect, in km
 - `obs_time`: date and time stamp (optional)
 - `X_observer`: x-coord of the observer (optional)
 - `Y_observer`: y-coord of the observer (optional)
@@ -66,6 +66,8 @@ data <- read_excel("data/impala_vlm.xlsx", sheet="template_dataset",
 
 The data looks as follows:
 ```{r data-preview}
+# data$transect_length <- data$transect_length*1000
+# data$area <- data$area*1000000
 head(data)
 ```
 
@@ -97,7 +99,7 @@ data_trunc <-
 save(data_trunc, file = "output/data_trunc.RData", compress = FALSE)
 ```
 
-The first histogram shows we have a very long tail for perpendicular distances, and the boxplot confirms that we have outliers. Using a truncation distance of `r params$trunc_perp_dist`%, we remove `r no_data` records.   
+The first histogram shows we have a very long tail for perpendicular distances, and the boxplot confirms that we have potential outliers. Using a truncation distance of `r params$trunc_perp_dist`%, we remove `r no_data` records.   
 
 We also produce the histogram and the boxplot for the forward distances, and we set a truncation distance of `r params$trunc_forw_dist_m`m.
 
@@ -192,7 +194,7 @@ Indeed, the estimated number of groups in the surveyed region is estimated by di
 ```{r groups}
 length(data$cluster_size)/(phatInterval(fitVU))[1] -> no_groups
 names(no_groups) <- "no_groups"
-no_groups/(2*w/1000*sum(data$transect_length)) -> dens_groups_km2
+(no_groups/(2*w*sum(data$transect_length)))*1000000 -> dens_groups_km2
 names(dens_groups_km2) <- "dens_groups_km2"
 cbind(no_groups, dens_groups_km2)
 # dividendo per 1000 la distanza di troncatura, si riporta l'unità di misura per la densità in km2
@@ -230,10 +232,15 @@ no_groups*mean(data_clustersize$cluster_size) -> abund_survey_individuals
 cv2_detfunc <- (phatInterval(fitVU)[2])^2
 cv2_clustersize <- (sd(data_clustersize$cluster_size)/mean(data_clustersize$cluster_size))^2
 data %>% 
-  group_by(transect) %>% 
-  summarise(no_groups_transect = sum(detected)) -> res
-cv2_transetti <- (sd(res$no_groups_transect)/mean(res$no_groups_transect))^2
-(cv_tot <- sqrt(cv2_gruppi + cv2_clustersize + cv2_transetti))
+  mutate(transetto = factor(transect)) %>%
+  dplyr::group_by(transect) %>% 
+  dplyr::summarise(no_groups_transect = sum(detected),
+                   transect_length = mean(transect_length)) %>% 
+  mutate(encounter_rate = no_groups_transect/transect_length) -> res
+res
+res$no_groups_transect
+cv2_transetti <- (sd(res$encounter_rate)/mean(res$encounter_rate))^2
+(cv_tot <- sqrt(cv2_detfunc + cv2_clustersize + cv2_transetti))
   
 ```
 
@@ -253,11 +260,15 @@ data_transects %>%
 transect.lengths = data_transects_unique$transect_length
 sum(transect.lengths)*2*w/1000 # area indagata
 
-phatInterval(fitVU)*w -> abund_survey
-abund_survey_individuals[1]/sum(transect.lengths)/(fitVU$w/1000)
+phatInterval(fitVU)*w -> abund_survey # num gruppi, i nomi delle colonne sono da modificare
+
+abund_survey[1]/sum(transect.lengths)/(fitVU$w/1000) -> dens_gruppi_km2
+names(dens_gruppi_km2) <- "no_gruppi_km2"
+abund_survey_individuals[1]/sum(transect.lengths)/(fitVU$w/1000) -> dens_ind_km2 # individui
+names(dens_ind_km2) <- "no_ind_km2"
 
 # dividendo per 1000 la distanza di troncatura, si riporta l'unità di misura per la densità in km2
-
+cbind(dens_gruppi_km2, dens_ind_km2)
 ```
 
 
