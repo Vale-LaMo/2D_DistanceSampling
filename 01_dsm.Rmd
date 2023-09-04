@@ -895,7 +895,6 @@ mod1<-dsm_vale(abundance.est ~ s(x,y), fake.ddf,
                convert.units = 1/1000, group = FALSE)
 
 summary(mod1)
-
 ```
 
 
@@ -938,12 +937,101 @@ preddata.var <- split(preddata, 1:nrow(preddata))
 dsm.xy.var <- dsm_var_gam(mod1, pred.data=preddata.var,
                           off.set=preddata$area)
 summary(dsm.xy.var) # questo non funziona
+source("functions/summary.dsm.var.vale.R")
+cv2_detfunc <- (phatInterval(fitVU)[2])^2
+# cvp.sq <- cv2_detfunc
+# this_cvp.sq <- cv2_detfunc
+summary.dsm.var.vale(dsm.xy.var)
 
+SE = (upper limit – lower limit) / 3.92
+SE = (27505.77 - 3232.511) /3.92
+SE/9429.353
 
+9429/((dim(preddata))[1]) # densità su 16 ettari, o 0.16 km2
+1.4:0.16 = x:1
+1.4/0.16 # densità al km2
 
-names(dsm.xy.var)
-dsm.xy.var$pred.var
 ```
+
+```{r}
+## --- Variance estimation per il modello scelto ----
+#
+# righe da non modificare
+preddata.varprop.subset <- split(preddata, 1:nrow(preddata))
+offset.varprop.subset <- as.list(rep(preddata$area[1],nrow(preddata)))
+# # solo per paper proprietà private
+# preddata.varprop.subset_pp <- split(preddata.subset2_pp, 1:nrow(preddata.subset2_pp))
+# offset.varprop.subset_pp <- as.list(rep(off.set,nrow(preddata.subset2_pp)))
+#
+dsm.var.subset <- dsm_var_gam(dsm.obj=mod1, pred.data=preddata.varprop.subset, 
+                              off.set = offset.varprop.subset, #seglen.varname = "Effort", 
+                              type.pred = "response")
+summary(dsm.var.subset)
+# # solo per paper proprietà private
+# dsm.var.subset_pp <- dsm.var.gam(dsm.obj=mod, pred.data=preddata.varprop.subset_pp, 
+#                                  off.set = offset.varprop.subset_pp, seglen.varname = "Effort", 
+#                                  type.pred = "response")
+# summary(dsm.var.subset_pp)
+# NB, il CV va moltiplicato per 100
+
+
+## ---- prediction and plot Nhat and uncertainty ----
+prediction.Nhat <- unlist(dsm.var.subset$pred)
+prediction.CV <- sqrt(dsm.var.subset$pred.var)/unlist(dsm.var.subset$pred)
+prediction.stdev <- sqrt(dsm.var.subset$pred.var)
+pp <- mutate(as.data.frame(preddata), Nhat = prediction.Nhat)
+pp.uncertainty <- mutate(pp, CV = prediction.CV, stdev = prediction.stdev)
+# plot Nhat
+pNhat <- ggplot(pp) +
+  geom_tile(aes(x=x, y=y, fill=Nhat, width=400, height=400)) +
+  scale_fill_distiller(palette = "YlGn", direction=2) +
+  #                      values = c(seq(0, 60, 60))) +
+  # scale_fill_distiller(palette = "YlGn", direction=2, trans = "log10", 
+  #                      name = "log10(Similarity)") +
+  labs(fill="Nhat") +
+  theme_minimal() +
+  coord_equal()
+print(pNhat)
+# plot CV
+# pCV <- ggplot(pp) +
+#   geom_tile(aes(x=x, y=y, fill=prediction.CV, width=100, height=100)) +
+#   labs(fill="CV") +
+#   theme_minimal() +
+#   coord_equal()
+# print(pCV)
+# plot SD
+pSD <- ggplot(pp) +
+  geom_tile(aes(x=x, y=y, fill=prediction.stdev, width=400, height=400)) +
+  labs(fill="SD") +
+  theme_minimal() +
+  coord_equal()
+print(pSD)
+
+pDens <- ggplot(pp) +
+  geom_tile(aes(x=x, y=y, fill=Nhat/0.160000, width=400, height=400)) +
+  scale_fill_distiller(palette = "YlGn", direction=2) +
+  #                      values = c(seq(0, 60, 60))) +
+  # scale_fill_distiller(palette = "YlGn", direction=2, trans = "log10", 
+  #                      name = "log10(Similarity)") +
+  labs(fill="density") +
+  theme_minimal() +
+  coord_equal()
+print(pDens)
+
+
+
+## ---- save abundance map for GIS ----
+# write.csv(pp,"DSMresults2015_grigio.csv")
+# write.csv(pp.uncertainty,"results/2020-02-14-DSMresults2015_grigio.csv")
+write.csv(pp,"output/2023-08-31-DSMresults_impala.csv")
+# write.csv(pp.uncertainty_pp,"results/2020-07-08-DSMresults2015_grigio_pp.csv") # per paper proprietà private
+# write.csv(pp_pp,"results/2020-02-14-DSMresults2015_grigio_pp.csv")
+
+pp.uncertainty <- read.csv("output/2023-07-08-DSMresults2015_grigio.csv")
+sum(pp.uncertainty$Nhat)
+```
+
+
 
 
 ```{r}

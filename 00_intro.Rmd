@@ -26,10 +26,11 @@ source("functions/com_hfunctions.R")
 source("functions/com_pifunctions.R")
 source("functions/com_likelihoodutilities.R")
 source("functions/GoFy_vlm.R") # custom GoFy function, modified by VLM 2022-11-11
+source("functions/plotfit.x.red.R") # custom function, modified by VLM 2023-08-31, to have a red line instead of a grey one
 ```
 
 In distance sampling surveys, the animals might avoid both the transects in the absence of observers, and the observers themselves.
-To correct for the effect of the behavioural responses of the animals to either the transects or the observers, we can estimate density and abundance using line transect survey data with both the forward and perpendicular distances to the observers (2D distance sampling), not just the perpendicular distance (R LT2D package, Borchers and Cox 2015). This analytical approach was also applied and recommended by Elenga et al. (2020).
+To correct for the effect of the behavioral responses of the animals to either the transects or the observers, we can estimate density and abundance using line transect survey data with both the forward and perpendicular distances to the observers (2D distance sampling), not just the perpendicular distance (R LT2D package, Borchers and Cox 2015). This analysis approach was also applied and recommended by Elenga et al. (2020).
 
 Here, we rely on the functions from LT2D package (https://github.com/david-borchers/LT2D), as partly revised and applied in Elenga et al. (2020) (https://github.com/cbonenfant/duikers-abundance). With respect to the latter, we made additional minor changes to the code. All the code and functions used are available on https://github.com/Vale-LaMo/2D_DistanceSampling
 
@@ -177,6 +178,15 @@ tryCatch.W.E(plotfit.x(x[x<=w],fitVU,nclass=20,nint=100));rug(x[x<=w])
 # linea grigia = detection osservata
 # linea tratteggiata = detection corretta tenendo conto della risposta comportamentale
 ```
+
+```{r}
+tryCatch.W.E(plotfit.x.red(x[x<=w],fitVU,nclass=20,nint=100));rug(x[x<=w])
+# vedere https://github.com/david-borchers/LT2D/blob/master/inst/FitsForPaper.r
+# linea nera sigmoide = distribuzione reale animali
+# linea grigia = detection osservata
+# linea tratteggiata = detection corretta tenendo conto della risposta comportamentale
+```
+
 
 We perform checks on the model, to verify the goodness of fit:
 

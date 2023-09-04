@@ -3,3 +3,4 @@
 "0","source(""functions/com_pifunctions.R"")"
 "0","source(""functions/com_likelihoodutilities.R"")"
 "0","source(""functions/GoFy_vlm.R"") # custom GoFy function, modified by VLM 2022-11-11"
+"0","source(""functions/plotfit.x.red.R"") # custom function, modified by VLM 2023-08-31, to have a red line instead of a grey one"

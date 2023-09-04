@@ -3,6 +3,8 @@ title: "2D distance sampling"
 params:
   seed_no: 16
   trunc_perp_dist: 5
+  input_file: "duiker_vlm.xlsx"
+  species: "duiker"
 output:
   html_document:
     df_print: paged
@@ -29,11 +31,11 @@ source("functions/plotfit.x.red.R") # custom function, modified by VLM 2023-08-3
 ```
 
 In distance sampling surveys, the animals might avoid both the transects in the absence of observers, and the observers themselves.
-To correct for the effect of the behavioural responses of the animals to either the transects or the observers, we can estimate density and abundance using line transect survey data with both the forward and perpendicular distances to the observers (2D distance sampling), not just the perpendicular distance (R LT2D package, Borchers and Cox 2015). This analytical approach was also applied and recommended by Elenga et al. (2020).
+To correct for the effect of the behavioral responses of the animals to either the transects or the observers, we can estimate density and abundance using line transect survey data with both the forward and perpendicular distances to the observers (2D distance sampling), not just the perpendicular distance (R LT2D package, Borchers and Cox 2015). This analysis approach was also applied and recommended by Elenga et al. (2020).
 
 Here, we rely on the functions from LT2D package (https://github.com/david-borchers/LT2D), as partly revised and applied in Elenga et al. (2020) (https://github.com/cbonenfant/duikers-abundance). With respect to the latter, we made additional minor changes to the code. All the code and functions used are available on https://github.com/Vale-LaMo/2D_DistanceSampling
 
-# Detection function fitting: impala
+# Detection function fitting: duiker
 
 ## Data import
 
@@ -47,9 +49,9 @@ First of all, we need to import the data. The dataset (Excel file) should includ
 - `perp_dist`: perpendicular distance to the observer (only if the group has been detected)
 - `forw_dist`: forward distance to the observer (only if the group has been detected)
 - `cluster_size`: number of animals in the group (optional, only if the group has been detected)
-<!-- - `obs_time`: date and time stamp (optional) -->
-<!-- - `X_observer`: x-coord of the observer (optional) -->
-<!-- - `Y_observer`: y-coord of the observer (optional) -->
+- `obs_time`: date and time stamp (optional)
+- `X_observer`: x-coord of the observer (optional)
+- `Y_observer`: y-coord of the observer (optional)
 
 All optional fields and the distance columns can have empty cells (or *NA*) in the Excel file. On the contrary, *NA*s are not admitted in the fields: `area`, `transect`, `transect_length`, `detected`, `object` (i.e., if the above order is respected, *NAs* are not admitted in the first 5 columns but can be present in the other ones). Values in the `forw_dist` column can also be negative.
 
@@ -57,10 +59,10 @@ All optional fields and the distance columns can have empty cells (or *NA*) in t
 
 ```{r data-loading}
 #### Load dataset
-data <- read_excel("data/duiker.xlsx", #sheet="template_dataset",
-                   col_types = c(rep("numeric", 8)))#,
-                                 # "date",
-                                 # "text", "text"))
+data <- read_excel(paste("data/",params$input_file,sep=""), #sheet="template_dataset",
+                   col_types = c(rep("numeric", 8),
+                                 "date",
+                                 "text", "text"))
 ```
 *The previous messages simply warn us on the presence of some NAs in the columns with numeric data. We will deal with them later but please go back and check your data if you did not expect this to happen.*
 
@@ -85,7 +87,7 @@ data_clean <-
 data_clean$forw_dist <- abs(data_clean$forw_dist) # we make sure all distances are positive (see Discussion for details)
 ```
 
-We now produce histograms and boxplots to identify outliers and we apply a standard 5% truncation:
+We now select the truncation distances. For this purpose, we produce histograms and boxplots to identify outliers.
 
 ```{r truncation-perpendicular-distances}
 hist(data_clean$perp_dist, main = "", xlab = "Perpendicular distance (m)")
@@ -96,10 +98,10 @@ threshold <- sort(data_clean$perp_dist, decreasing = TRUE)[no_data+1] # threshol
 data_trunc <- 
   data_clean %>% 
   filter(perp_dist <= threshold)
-save(data_trunc, file = "output/data_trunc.RData", compress = FALSE)
+save(data_trunc, file = paste("output/data_trunc_",params$species,".RData",sep=""), compress = FALSE)
 ```
 
-Using a truncation distance of `r params$trunc_perp_dist`%, we remove `r no_data` records.   
+<!-- The first histogram shows we have a very long tail for perpendicular distances, and the boxplot confirms that we have potential outliers. Using a truncation distance of `r params$trunc_perp_dist`%, we remove `r no_data` records.    -->
 
 We also produce the histogram and the boxplot for the forward distances:
 
@@ -108,15 +110,17 @@ hist(data_trunc$forw_dist, main = "", xlab = "Forward distance (m)")
 boxplot(data_trunc$forw_dist, ylab = "Forward distance (m)")
 ```
 
+
 If ouliers are detected in the forward distances, they can be removed with the following code (optional):
 
 ```{r}
-ystart = max(data_trunc$forw_dist) # change this to the desired truncation distance if necessary, e.g. 
-# ystart = 65
+# ystart = max(data_trunc$forw_dist) # change this to the desired truncation distance if necessary, e.g. 
+ystart = 150
 data_trunc <- 
   data_trunc %>% 
   filter(forw_dist <= ystart)
 ```
+
 
 
 
@@ -165,7 +169,7 @@ debug=FALSE
  }
 tabVU
 if(!is.numeric(unlist(tabVU))) print("error, change seed_no to any random number")
-save(fitVU, file = "output/fitVU.RData", compress = FALSE)
+save(fitVU, file = paste("output/fitVU_",params$species,".RData",sep=""), compress = FALSE)
 ```
 
 ```{r}
@@ -176,6 +180,15 @@ tryCatch.W.E(plotfit.x(x[x<=w],fitVU,nclass=20,nint=100));rug(x[x<=w])
 # linea tratteggiata = detection corretta tenendo conto della risposta comportamentale
 ```
 
+```{r}
+tryCatch.W.E(plotfit.x.red(x[x<=w],fitVU,nclass=20,nint=100));rug(x[x<=w])
+# vedere https://github.com/david-borchers/LT2D/blob/master/inst/FitsForPaper.r
+# linea nera sigmoide = distribuzione reale animali
+# linea grigia = detection osservata
+# linea tratteggiata = detection corretta tenendo conto della risposta comportamentale
+```
+
+
 We perform checks on the model, to verify the goodness of fit:
 
 ```{r gof-tests}
@@ -183,7 +196,7 @@ fName = "h1"
 GoFx(fitVU,plot=TRUE)$pvals
 plotfit.y(y[x<=w & y<=ystart],x,fitVU,nclass=20);rug(x=y[x<=w])
 plotfit.smoothfy(fitVU,nclass=32);rug(x=y[x<=w])
-GoFy_vlm(fitVU,plot=TRUE)$pvals
+GoFy_vlm(fitVU,plot=TRUE)$pvals # brillantemente risolto
 
 plotfit.smoothfy(fitVU,xmax=199)
 ``` 
@@ -217,7 +230,6 @@ cbind(no_groups, dens_groups_km2)
 ## Cluster size stats and estimated number of individuals with CV
 
 In order to estimate the number of individuals, we now consider the cluster size data, summarising them and calculating the cluster size standard deviation:
-**Please note that this is going to be = 1 for solitary species (this result can be overlooked)**
 
 ```{r}
 data_clustersize <- 
@@ -245,7 +257,7 @@ data %>%
   dplyr::summarise(no_groups_transect = sum(detected),
                    transect_length = mean(transect_length)) %>% 
   mutate(encounter_rate = no_groups_transect/transect_length) -> res
-# res
+res
 res$no_groups_transect
 cv2_transetti <- (sd(res$encounter_rate)/mean(res$encounter_rate))^2
 (cv_tot <- sqrt(cv2_detfunc + cv2_clustersize + cv2_transetti))
@@ -256,8 +268,8 @@ cv2_transetti <- (sd(res$encounter_rate)/mean(res$encounter_rate))^2
 
 
 ```{r}
-data_transects <- read_excel("data/impala_vlm.xlsx", 
-                             sheet="template_dataset",
+data_transects <- read_excel("data/duiker_vlm.xlsx",  # controllare!!
+                             # sheet="template_dataset",
                              col_types = c(rep("numeric", 3),
                                  "date",
                                  "text", "text",
