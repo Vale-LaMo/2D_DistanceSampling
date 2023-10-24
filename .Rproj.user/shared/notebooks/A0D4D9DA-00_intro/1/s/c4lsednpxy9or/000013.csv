@@ -1,5 +1,0 @@
-"0","openGraph(h=3,w=12)"
-"0","par(mfrow=c(1,3))"
-"0","pdlab=""Perpendicular distance"""
-"0","fdlab=""Distance along transect"""
-"0","plot(jitter(y,1,0),jitter(x),pch=""+"",ylab=pdlab,xlab=fdlab,main="""")"
