@@ -55,5 +55,6 @@ function (fit, plot = FALSE, dotitle = FALSE)
   }
   pvals = c(p.cvm, p.kolomogarov)
   names(pvals) = c("Cramer-von Mises", "Kolmogarov-Smirnov")
-  return(data.frame(pvals = pvals, D.kolomogarov = Dn))
+  # return(data.frame(pvals = pvals, D.kolomogarov = Dn))
+  return(list(pvals = pvals, D.kolomogarov = Dn))
 }
