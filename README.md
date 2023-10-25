@@ -5,3 +5,11 @@ In distance sampling surveys, the animals might avoid both the transects in the 
 Here, we rely on the functions from LT2D package (https://github.com/david-borchers/LT2D), as partly revised and applied in Elenga et al. (2020) (https://github.com/cbonenfant/duikers-abundance). With respect to the latter, we made additional minor changes to the code.
 
 As an example, we apply the code to estimate the density of two species with different behavioral response to the transects/observers - impala and duikers.
+
+
+## Density Surface Modelling
+
+
+## Instructions
+
+**Please also note that we assume that the folder in which this .Rmd file is stored includes the subfolders named *data* and *output*. The first one should contain the input data, while the second one must be created as an empty folder - output of the DS analyses will be saved there for (optional) subsequent analyses. The subfolder *functions* is also essential since it contains the customized functions used for the analyses. The whole structure can however be recreated effortless by forking and then cloning the GitHub repository on your local machine.**

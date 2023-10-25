@@ -46,6 +46,8 @@ Here, we rely on the functions from LT2D package (https://github.com/david-borch
 **To perform the analyses, initial parameters (species name, input file, percentage used for perpendicular distance data truncation, forward truncation distance in meters) are set at the beginning of this notebook (they can be customized manually, or via "Knit with parameters" in the Knit menu).**
 For the parameters `trunc_perp_dist_perc` and `trunc_forw_dist_m`, we recommend setting them respectively at 5, and at value >= than the largest forward distance. Then you can run the analyses and stop at the *Data cleaning and truncation* section to check the plots and eventually change these initial values.
 
+**Please also note that we assume that the folder in which this .Rmd file is stored includes the subfolders named *data* and *output*. The first one should contain the input data, while the second one must be created as an empty folder - output of the DS analyses will be saved there for (optional) subsequent analyses. The subfolder *functions* is also essential since it contains the customized functions used for the analyses. The whole structure can however be recreated effortless by forking and then cloning the GitHub repository on your local machine.** (see the README for detailed instructions)
+
 # Detection function fitting
 
 ## Data import
@@ -111,7 +113,6 @@ threshold <- sort(data_clean$perp_dist, decreasing = TRUE)[no_data+1] # threshol
 data_trunc <- 
   data_clean %>% 
   filter(perp_dist <= threshold)
-save(data_trunc, file = paste("output/data_trunc_", params$species_name,".RData", sep = ""), compress = FALSE)
 ```
 
 The first histogram shows we have a very long tail for perpendicular distances, and the boxplot confirms that we have potential outliers. Using a truncation distance of `r params$trunc_perp_dist_perc`%, we remove `r no_data` records.  
@@ -136,6 +137,13 @@ data_trunc <-
   data_trunc %>% 
   filter(forw_dist <= ystart)
 ```
+
+When all truncations have been applied, the truncated data are saved to a `data_trunc` .RData file, to be used in the following (optional) DSM analyses.
+
+```{r data_trunc-save}
+save(data_trunc, file = paste("output/data_trunc_", params$species_name,".RData", sep = ""), compress = FALSE)
+```
+
 
 
 ## Model fitting and estimation of the number of groups
