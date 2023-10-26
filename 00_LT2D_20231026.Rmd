@@ -1,13 +1,17 @@
 ---
 title: "2D distance sampling"
 params:
-  seed_no: 16
   species_name: "duiker"
   input_file: "duiker_vlm.xlsx"
   trunc_perp_dist_perc: 5
-  trunc_forw_dist_m: 200
+  trunc_forw_dist_m: 150
   h.function: h.RE
+  n_hpars: 2
   pi.function: pi.sigmo
+  n_pipars: 2
+  starting_values: !expr c(0.25,0.25,-4,-1)
+  sd: 6
+  n_models: 200
 output:
   html_notebook: 
     toc: yes
@@ -17,9 +21,6 @@ output:
   html_document:
     df_print: paged
 ---
-
-<!-- # these functions work: h.RE, h.IP, h.SS, h.okamura -->
-<!-- # functions tested and working with h.RE: pi.sigmo, pi.CHN, pi.TN -->
 
 ```{r packages, message=FALSE}
 #### Load packages
@@ -41,15 +42,19 @@ source("functions/GoFy_vlm.R") # custom GoFy function, modified by VLM 2022-11-1
 source("functions/plotfit.x.red.R") # custom function, modified by VLM 2023-08-31, to have a red line instead of a grey one
 ```
 
+# Introduction and settings
+
 In distance sampling surveys, the animals might avoid both the transects in the absence of observers, and the observers themselves.
 To correct for the effect of the behavioral responses of the animals to either the transects or the observers, we can estimate density and abundance using line transect survey data with both the forward and perpendicular distances to the observers (2D distance sampling - R LT2D package, Borchers and Cox 2017), not just the perpendicular distance. This analysis approach was also applied and recommended by Elenga et al. (2020).
 
-Here, we rely on the functions from LT2D package (https://github.com/david-borchers/LT2D), as partly revised and applied in Elenga et al. (2020) (https://github.com/cbonenfant/duikers-abundance). With respect to the latter, we made additional minor changes to the code. All the code and functions used are available on https://github.com/Vale-LaMo/2D_DistanceSampling
+Here, we rely on the functions from LT2D package (https://github.com/david-borchers/LT2D), as partly revised and applied in Elenga et al. (2020) (https://github.com/cbonenfant/duikers-abundance). With respect to the latter, we made additional minor changes to the code. The code, data and functions used are available on https://github.com/Vale-LaMo/2D_DistanceSampling
 
-**To perform the analyses, initial parameters (species name, input file, percentage used for perpendicular distance data truncation, forward truncation distance in meters) are set at the beginning of this notebook (they can be customized manually, or via "Knit with parameters" in the Knit menu).**
-For the parameters `trunc_perp_dist_perc` and `trunc_forw_dist_m`, we recommend setting them respectively at 5, and at value >= than the largest forward distance. Then you can run the analyses and stop at the *Data cleaning and truncation* section to check the plots and eventually change these initial values.
+**To perform the analyses, initial parameters (species name, input file, percentage used for perpendicular distance data truncation, forward truncation distance in meters, etc.) are set at the beginning of this notebook (they can be customized manually, or via "Knit with parameters" in the Knit menu).**
+For the parameters `trunc_perp_dist_perc` and `trunc_forw_dist_m`, we recommend setting them respectively at 5, and at value >= than the largest forward distance. Then you can run the analyses and stop at the *Data cleaning and truncation* section to check the plots and eventually change these initial values.   
+On the contrary, the parameters `h.function` and `pi.function`, and the corresponding number of parameters (`n_hpars` and `n_pipars`) are included in the header, but we recommend not editing them (unless you are an advanced user). The same applies for the `starting_values` and the `sd`. All these parameters concern the function used to model the radial detection function and the density of animals vs. distance from the transect.   
+The last parameter (`n_models`) defines the number of models that are fitted with different starting values, and we recommend to set it to a large number (e.g., 100 or 200).
 
-**Please also note that we assume that the folder in which this .Rmd file is stored includes the subfolders named *data* and *output*. The first one should contain the input data, while the second one must be created as an empty folder - output of the DS analyses will be saved there for (optional) subsequent analyses. The subfolder *functions* is also essential since it contains the customized functions used for the analyses. The whole structure can however be recreated effortless by forking and then cloning the GitHub repository on your local machine.** (see the README for detailed instructions)
+**Please also note that we assume that the folder in which this .Rmd file is stored includes the subfolders named *data* and *output*. The first one should contain the input data, while the second one must be created as an empty folder - output of the DS analyses will be saved there for (optional) subsequent analyses. The subfolder *functions* is also essential since it contains the customized functions used for the analyses. The whole structure can however be recreated effortlessly by forking and then cloning the GitHub repository on your local machine.** (see the README for detailed instructions)
 
 # Detection function fitting
 
@@ -148,16 +153,15 @@ save(data_trunc, file = paste("output/data_trunc_", params$species_name,".RData"
 ```
 
 
-
-
 ## Model fitting and estimation of the number of groups
 
-We now fit 2D distance sampling model using multiple initial value to avoid local *minima* in the deviance (Elenga et al. 2020).
+We now fit 2D distance sampling model using multiple initial values to avoid local *minima* in the deviance (Elenga et al. 2020).   
 <!-- and we obtain the estimates of the detection probabilities (p-hat) and the number of groups (N) with bootstrap confidence intervals: -->
-As in Elenga et al. (2020), we model the detection function in two dimensions using a radial exponential hazard risk (\(h_{HB}\) under the notation of Borchers & Cox 2017), thereby making the same approximation as the half-normal detection function that is commonly found to describe the detection process in 1D. That is, we use the `h.RE` function of Elenga et al. (2020) for modeling the decay in detection rate with radial distance, and the `pi.sigmo` function of Elenga et al. (2020) for modeling the change in animal density with perpendicular distance to a line-transect (i.e., the behavioural response). See also Elenga et al. (2020) for alternative functions.
+As in Elenga et al. (2020), we model the detection function in two dimensions using a radial exponential hazard risk (\(h_{HB}\) under the notation of Borchers & Cox 2017), thereby making the same approximation as the half-normal detection function that is commonly found to describe the detection process in 1D. That is, we use the `h.RE` function of Elenga et al. (2020) for modeling the decay in detection rate with radial distance, and the `pi.sigmo` function of Elenga et al. (2020) for modeling the change in animal density with perpendicular distance to a line-transect (i.e., the behavioural response). See also Elenga et al. (2020), or the files "functions/com_hfunctions.R" and "functions/com_pifunctions.R" for alternative functions.   
+Please note that the functions used are declared in the header of the document, together with the number of parameters that characterize each of them (different functions may have different number of parameters, e.g., 3 params for `h.yTRE`).   
+`r params$n_models` (number set via the parameter `n_models`) are fitted using parameter values extracted from a random distribution, with the initial values for the mean (`starting_values`) and the sd (`sd`) declared in the header. The length of the `starting_values` depends on the number of parameters that characterize the adopted functions (check them if you change function type).
 
 ```{r model-fitting}
-seed_no <- set.seed(params$seed_no)
 #### Model fitting
 y = data_trunc$forw_dist
 x = data_trunc$perp_dist
@@ -167,59 +171,112 @@ pi.x = params$pi.function # perpendicular distance function used
 # functions tested and working with h.RE: pi.sigmo, pi.CHN, pi.TN
 ystart = ceiling(max(y))
 w = ceiling(max(x))
-length.b = 2
+length.b = params$n_hpars # pars for h function
+length.logphi = params$n_pipars # pars for pi function
+length.pars = length.b + length.logphi
 debug=FALSE
 
- FIT=list(); dev=NULL
- for (m in 1:10) {
-   set.seed(params$seed_no)
-   pars = rnorm(4, c(0.25,0.25,-4,-1), 3)
-   set.seed(params$seed_no)
+ FIT=list(); AICvalues=NULL
+ for (m in 1:params$n_models) {
+   set.seed(m)
+   pars = rnorm(length.pars, # tot no. pars 
+                params$starting_values, params$sd) 
+   set.seed(m)
    tmp0 <- tryCatch.W.E (
      fityx(y,x,pars[1:length.b],
-           hr,ystart,pi.x,pars[(length.b+1):length(pars)],w,control=list(),
+           hr,ystart,pi.x,
+           pars[(length.b+1):length(pars)],w,
+           control=list(),
            hessian=TRUE,corrFlag=0.7,debug=FALSE)
    )
    fit = NA
    if(! "error" %in% class(tmp0$value)) {
      fit <- tmp0$value
-     fit$vcov <-  matrix(Matrix::nearPD(fit$vcov)$mat,4,4)
+     fit$vcov <-  matrix(Matrix::nearPD(fit$vcov)$mat,length.pars,length.pars)
    }
    FIT[[m]] = fit
-   if(is.na(fit[1])) dev=c(dev, 1e12) else dev = c(dev, fit$val)
+   # if(is.na(fit[1])) dev=c(dev, 1e12) else dev = c(dev, fit$AIC)
+   
+   # with the funciton used in this analyses, we add the constraint that the pi.x pars should be negative
+   # to maintain the sigmoid shape
+   if(params$pi.function == "pi.sigmo" & params$h.function == "h.RE") {
+     if(!is.na(fit[1])) {
+       if(any(is.nan(fit$corr)) | any(fit$par[3:4] > 0)) {
+         AICvalues=c(AICvalues, 1e12)
+       } else {
+         AICvalues=c(AICvalues, fit$AIC)
+       }
+     } else {
+       AICvalues=c(AICvalues, 1e12)
+     }
+   } else {
+     if(!is.na(fit[1])) {
+       if(any(is.nan(fit$corr))) {
+         # if(all(fit$b > 0)) {
+         AICvalues=c(AICvalues, 1e12)
+       } else {
+         AICvalues=c(AICvalues, fit$AIC)
+       }
+     } else {
+       AICvalues=c(AICvalues, 1e12)
+     }
+   }
  }
- fitVU = FIT[[which.min(dev)]]
- tabVU = matrix(NA,2,3)
- if(is.na(fitVU[1])) tabVU = matrix(NA,2,3) else {
-   # set.seed(10)
-   tmp1 <- tryCatch.W.E (boot(fitVU))
- if(! "error" %in% class(tmp1$value))  tabVU=tmp1$value
- }
-# tabVU # the CIs for the average p and the N of groups are generated by bootstrap
-if(!is.numeric(unlist(tabVU))) print("error, change seed_no to any random number")
-save(fitVU, file = paste("output/fitVU_", params$species_name, ".RData", sep = ""), compress = FALSE)
+#  fitVU = FIT[[which.min(dev)]]
+#  tabVU = matrix(NA,2,3)
+#  if(is.na(fitVU[1])) tabVU = matrix(NA,2,3) else {
+#    # set.seed(10)
+#    tmp1 <- tryCatch.W.E (boot(fitVU))
+#  if(! "error" %in% class(tmp1$value))  tabVU=tmp1$value
+#  }
+# # tabVU # the CIs for the average p and the N of groups are generated by bootstrap
+# if(!is.numeric(unlist(tabVU))) print("error!")
+# save(fitVU, file = paste("output/fitVU_", params$species_name, ".RData", sep = ""), compress = FALSE)
 save(FIT, file = paste("output/FIT_", params$species_name, ".RData", sep = ""), compress = FALSE)
 ```
 
-The following figure shows the actual distribution of animals (continuous black line), the "observed" detection function (bold red line) and the "corrected" detection function (dashed black line), that takes into account the behavioural response
+The best models (\(\Delta\)AIC < 2) are identified and plotted (there might be only one). The figure(s) shows the actual distribution of animals (continuous black line), the "observed" detection function (bold red line) and the "corrected" detection function (dashed black line), that takes into account the behavioural response
 
-```{r plot-df-greyscale, echo=FALSE, eval=FALSE}
-tryCatch.W.E(plotfit.x(x[x<=w],fitVU,nclass=20,nint=100));rug(x[x<=w])
+```{r best-models}
+data.frame(m = 1:params$n_models, modAIC = AICvalues) -> df.AIC
+df.AIC %>% 
+  arrange(modAIC) %>% 
+  filter(modAIC <= min(df.AIC$modAIC) + 2) -> tab.AIC
+tab.AIC
+
+# tryCatch.W.E(plotfit.x.red(x[x<=w],fitVU,nclass=20,nint=100));rug(x[x<=w])
 # see https://github.com/david-borchers/LT2D/blob/master/inst/FitsForPaper.r
+# the original plotfit.x function has been modified to customize the colors
+# tryCatch.W.E(plotfit.x(x[x<=w],fitVU,nclass=20,nint=100));rug(x[x<=w]) # greyscale
+for (i in 1:length(tab.AIC$m)) {
+  plotfit.x.red(x[x<=w],FIT[[tab.AIC$m[i]]],nclass=20,nint=100);rug(x[x<=w])
+}
 ```
+Among them, if more than one, we finally select the model with the lowest CV:
 
-```{r plot-df-red}
+```{r}
+CV.phat.values <- vector("numeric", length(tab.AIC$m))
+for (i in 1:length(tab.AIC$m)) {
+  fName = params$h.function
+  CV.phat.values[i] <- phatModels(list(FIT[[tab.AIC$m[i]]]))$CV.phat
+  # LT2D::phatModels(modList = list(FIT[tab.AIC$m[i]]))$CV.phat
+}
+(tab.AIC %>%
+  mutate(CV.phat = CV.phat.values) %>%
+  filter(CV.phat == min(CV.phat)) -> best_mod)
+fitVU = FIT[[best_mod$m]]
+save(fitVU, file = paste("output/fitVU_", params$species_name, ".RData", sep = ""), compress = FALSE)
+```
+```{r plot-df-red-best-model, eval=TRUE}
 # tryCatch.W.E(plotfit.x.red(x[x<=w],fitVU,nclass=20,nint=100));rug(x[x<=w])
 # see https://github.com/david-borchers/LT2D/blob/master/inst/FitsForPaper.r
 # the original plotfit.x function has been modified to customize the colors
 plotfit.x.red(x[x<=w],fitVU,nclass=20,nint=100);rug(x[x<=w])
 ```
-
-
 We now perform checks on the model, to verify the goodness of fit in the perpendicular dimension (Kolmogarov-Smirnov and Cramer-von Mises p-values are also reported):
 
 ```{r gof-tests-perp}
-fName = "h1"
+fName = params$h.function
 # GoF for perpendicular distances
 GoFx(fitVU,plot=TRUE)$pvals
 ``` 
@@ -228,6 +285,7 @@ We also verify the goodness of fit in the forward dimension
 
 ```{r}
 # GoF for forward distances
+fName = params$pi.function
 GoFy_vlm(fitVU,plot=TRUE)$pvals
 # plotfit.smoothfy(fitVU,nclass=32);rug(x=y[x<=w])
 # plotfit.y(y[x<=w & y<=ystart],x,fitVU,nclass=20);rug(x=y[x<=w])
@@ -237,10 +295,10 @@ plotfit.smoothfy(fitVU,xmax=199)
 Finally, we summarise the results on the **detection probability** and the **number of groups** in the surveyed region:
 
 ```{r detection-prob}
-(LT2D::phatModels(modList = FIT[which.min(dev)], # same as fitVU
+(LT2D::phatModels(modList = list(fitVU), # same as fitVU
                  n=length(na.omit(data_trunc$cluster_size))) -> stats_df_groups)
+# LT2D::phatModels(modList = list(FIT[76]))
 ```
-
 Indeed, number of groups in the surveyed area is estimated by dividing the number of observed groups (`n`) for the detection probability. The following table shows the estimated number of groups and the density per square km:
 
 ```{r groups}
@@ -329,8 +387,13 @@ as.data.frame(do.call(rbind, stats)) -> statistics
 colnames(statistics) <- NULL
 statistics
 
-stats_df_groups$NhatLower*mean(data_clustersize$cluster_size) -> ind_min
-stats_df_groups$NhatUpper*mean(data_clustersize$cluster_size) -> ind_max
+if(cv_clustersize == 0){
+  ind_min <- stats_df_groups$NhatLower
+  ind_max <- stats_df_groups$NhatUpper
+} else {
+  (abund_survey_individuals[[1]]-(abund_survey_individuals[[1]]/cv_tot)*1.96)[[1]] -> ind_min
+  (abund_survey_individuals[[1]]+(abund_survey_individuals[[1]]/cv_tot)*1.96)[[1]] -> ind_max
+}
 
 # rows = c("Average p", "N groups", "N individuals")
 Estimate = c(stats_df_groups$phat, stats_df_groups$Nhat, abund_survey_individuals[[1]])
@@ -339,7 +402,6 @@ Upper = c(stats_df_groups$upper.bound, stats_df_groups$NhatUpper, ind_max)
 data.frame(Estimate,Lower,Upper) -> results
 row.names(results) <- c("Average p", "N groups", "N individuals")
 results
-      
 ```
 
 # References
@@ -347,6 +409,3 @@ results
 Borchers DL, Cox MJ (2017) Distance sampling detection functions: 2D or not 2D? Biometrics 73(2):593-602. https://doi.org/10.1111/biom.12581    
 Elenga G, Bonenfant C, Péron G (2020) Distance sampling of duikers in the rainforest: Dealing with transect avoidance. PLOS ONE 15(10): e0240049. https://doi.org/10.1371/journal.pone.0240049
 
-h.RE/pi.sigmo 392.998230207762
-h.PI/pi.sigmo
-h.okamura/p.sigmo 408.762520252286

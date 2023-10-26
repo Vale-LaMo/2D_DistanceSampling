@@ -3,7 +3,7 @@
 #### w = perpendicular truncation distance
 #### All excepted pi.sigmo are extracted from the LT2D package
 
-list.pi = c("pi.HN","pi.CHN","pi.TN","pi.const","pi.sigmo", "pi.sigmoI")
+list.pi = c("pi.HN","pi.CHN","pi.CN","pi.TN","pi.const","pi.sigmo", "pi.sigmoI")
 
 pi.HN=function(x,logphi,w) { ## Half-normal
   hnF=function(x,logphi) exp(-x^2/(2*exp(logphi[1])^2))
@@ -11,12 +11,17 @@ pi.HN=function(x,logphi,w) { ## Half-normal
 }
 attributes(pi.HN)=list(fName="pi.HN")
 
-
 pi.CHN=function(x,logphi,w){ ## Complementary Half-normal
   chnF=function(x,logphi) 1-exp(-(x-logphi[1])^2/(2*exp(logphi[2])^2))
   return(chnF(x,logphi)/integrate(chnF,0,w,logphi)$value)
 }
 attributes(pi.CHN)=list(fName="pi.CHN")
+
+pi.CN=function(x,logphi,w){ ## pi.CN in Borchers & Cox 2017
+  chnF=function(x,logphi) (1-exp(-(-(x^2)/(2*logphi^2))))
+  return(chnF(x,logphi) / (w-(integrate(chnF,0,w,logphi)$value)))
+}
+attributes(pi.CN)=list(fName="pi.CN")
 
 
 pi.TN=function(x,logphi,w){ ## Truncated normal

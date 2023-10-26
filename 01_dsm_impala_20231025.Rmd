@@ -11,6 +11,9 @@ output:
     df_print: paged
 ---
 
+**THIS FILE IS WORK IN PROGRESS**
+
+
 ```{r packages, message=FALSE}
 # install.packages(c("dsm", "Distance", "distill", "rgdal",
 #                    "maptools", "plyr", "tweedie"))
