@@ -1,8 +1,8 @@
 ---
 title: "2D distance sampling"
 params:
-  species_name: "duiker"
-  input_file: "duiker_vlm.xlsx"
+  species_name: impala
+  input_file: impala_vlm.xlsx
   trunc_perp_dist_perc: 5
   trunc_forw_dist_m: 150
   h.function: h.RE
@@ -13,13 +13,17 @@ params:
   sd: 6
   n_models: 200
 output:
-  html_notebook: 
+  html_notebook:
     toc: yes
-    toc_float: true
+    toc_float: yes
     code_folding: hide
     theme: cosmo
   html_document:
     df_print: paged
+  word_document:
+    toc: yes
+  pdf_document:
+    toc: yes
 ---
 
 ```{r packages, message=FALSE}
@@ -42,6 +46,8 @@ source("functions/GoFy_vlm.R") # custom GoFy function, modified by VLM 2022-11-1
 source("functions/plotfit.x.red.R") # custom function, modified by VLM 2023-08-31, to have a red line instead of a grey one
 ```
 
+**Analyses for `r params$species_name`**
+
 # Introduction and settings
 
 In distance sampling surveys, the animals might avoid both the transects in the absence of observers, and the observers themselves.
@@ -49,9 +55,9 @@ To correct for the effect of the behavioral responses of the animals to either t
 
 Here, we rely on the functions from LT2D package (https://github.com/david-borchers/LT2D), as partly revised and applied in Elenga et al. (2020) (https://github.com/cbonenfant/duikers-abundance). With respect to the latter, we made additional minor changes to the code. The code, data and functions used are available on https://github.com/Vale-LaMo/2D_DistanceSampling
 
-**To perform the analyses, initial parameters (species name, input file, percentage used for perpendicular distance data truncation, forward truncation distance in meters, etc.) are set at the beginning of this notebook (they can be customized manually, or via "Knit with parameters" in the Knit menu).**
+**To perform the analyses, initial parameters (species name, input file, percentage used for perpendicular distance data truncation, forward truncation distance in meters, etc.) are set at the beginning of this notebook (they can be customized manually, or via "Knit with parameters" in the Knit menu - except for the starting values that can only be customized manually, but normally they should not be edited - see below).**
 For the parameters `trunc_perp_dist_perc` and `trunc_forw_dist_m`, we recommend setting them respectively at 5, and at value >= than the largest forward distance. Then you can run the analyses and stop at the *Data cleaning and truncation* section to check the plots and eventually change these initial values.   
-On the contrary, the parameters `h.function` and `pi.function`, and the corresponding number of parameters (`n_hpars` and `n_pipars`) are included in the header, but we recommend not editing them (unless you are an advanced user). The same applies for the `starting_values` and the `sd`. All these parameters concern the function used to model the radial detection function and the density of animals vs. distance from the transect.   
+On the contrary, the parameters `h.function` and `pi.function`, and the corresponding number of parameters (`n_hpars` and `n_pipars`) are included in the header, but we recommend not editing them (unless you are an advanced user). The same applies for the `starting_values` and the `sd`. All these parameters concern the function used to model the radial detection function and the density of animals vs. distance from the transect.
 The last parameter (`n_models`) defines the number of models that are fitted with different starting values, and we recommend to set it to a large number (e.g., 100 or 200).
 
 **Please also note that we assume that the folder in which this .Rmd file is stored includes the subfolders named *data* and *output*. The first one should contain the input data, while the second one must be created as an empty folder - output of the DS analyses will be saved there for (optional) subsequent analyses. The subfolder *functions* is also essential since it contains the customized functions used for the analyses. The whole structure can however be recreated effortlessly by forking and then cloning the GitHub repository on your local machine.** (see the README for detailed instructions)
@@ -109,6 +115,18 @@ data_clean <-
 data_clean$forw_dist <- abs(data_clean$forw_dist) # we make sure all distances are positive (see Discussion for details)
 ```
 
+The following plot clearly shows the avoidance of animals with respect to the transect (indicated by the gap with no points along the *x* axis, from 0 to nearly 20 m):
+
+```{r plot-avoidance}
+plot(data_clean$perp_dist, data_clean$forw_dist,
+     xlim=c(0,max(data_clean$perp_dist)),
+     ylim=c(0,max(data_clean$forw_dist)),
+     xlab = "Perpedincular distance",
+     ylab = "Forward distance")
+```
+
+
+
 We now select the truncation distances. For this purpose, we produce histograms and boxplots to identify outliers:
 
 ```{r truncation-perpendicular-distances}
@@ -123,7 +141,7 @@ data_trunc <-
   filter(perp_dist <= threshold)
 ```
 
-The histogram and the box plot do not suggest the presence of outliers. Nevertheless, we apply a standard truncation distance of `r params$trunc_perp_dist_perc`%, we remove `r no_data` records.
+By applying a standard truncation distance of `r params$trunc_perp_dist_perc`%, we remove `r no_data` record(s).
 
 *Please note that the percentage of data can be changed by modifying the parameters of this notebook (or via the "Knit with parameters" option in the Knit menu).*
 
@@ -136,7 +154,7 @@ boxplot(data_trunc$forw_dist, ylab = "Forward distance (m)")
 ```
 
 
-If outliers are detected in the forward distances, they can be removed by setting a custom `trunc_forw_dist_m` parameter value. If truncation is not necessary, just set the `trunc_forw_dist_m` to value >= than the largest forward distance. In this case, we keep the maximum observed distance, since there is no evidence of outliers.
+If outliers are detected in the forward distances, they can be removed by setting a custom `trunc_forw_dist_m` parameter value. If truncation is not necessary, just set the `trunc_forw_dist_m` to value >= than the largest forward distance.
 
 ```{r outliers-forward-distances}
 # ystart = max(data_trunc$forw_dist) # change this to the desired truncation distance if necessary, e.g.
@@ -235,7 +253,7 @@ debug=FALSE
 save(FIT, file = paste("output/FIT_", params$species_name, ".RData", sep = ""), compress = FALSE)
 ```
 
-The best models (\(\Delta\)AIC < 2) are identified and plotted (there might be only one). The figure(s) shows the actual distribution of animals (continuous black line), the "observed" detection function (bold red line) and the "corrected" detection function (dashed black line), that takes into account the behavioural response
+The best models are identified according to AIC values (\(\Delta\)AIC < 2):
 
 ```{r best-models}
 data.frame(m = 1:params$n_models, modAIC = AICvalues) -> df.AIC
@@ -244,15 +262,15 @@ df.AIC %>%
   filter(modAIC <= min(df.AIC$modAIC) + 2) -> tab.AIC
 tab.AIC
 
-# tryCatch.W.E(plotfit.x.red(x[x<=w],fitVU,nclass=20,nint=100));rug(x[x<=w])
-# see https://github.com/david-borchers/LT2D/blob/master/inst/FitsForPaper.r
-# the original plotfit.x function has been modified to customize the colors
-# tryCatch.W.E(plotfit.x(x[x<=w],fitVU,nclass=20,nint=100));rug(x[x<=w]) # greyscale
-for (i in 1:length(tab.AIC$m)) {
-  plotfit.x.red(x[x<=w],FIT[[tab.AIC$m[i]]],nclass=20,nint=100);rug(x[x<=w])
-}
+# # tryCatch.W.E(plotfit.x.red(x[x<=w],fitVU,nclass=20,nint=100));rug(x[x<=w])
+# # see https://github.com/david-borchers/LT2D/blob/master/inst/FitsForPaper.r
+# # the original plotfit.x function has been modified to customize the colors
+# # tryCatch.W.E(plotfit.x(x[x<=w],fitVU,nclass=20,nint=100));rug(x[x<=w]) # greyscale
+# for (i in 1:length(tab.AIC$m)) {
+#   plotfit.x.red(x[x<=w],FIT[[tab.AIC$m[i]]],nclass=20,nint=100);rug(x[x<=w])
+# }
 ```
-Among them, if more than one, we finally select the model with the lowest CV:
+Among them, if more than one, we finally select the model with the lowest CV and we plot it. The figure shows the actual distribution of animals (continuous black line), the "observed" detection function (bold red line) and the "corrected" detection function (dashed black line), that takes into account the behavioural response
 
 ```{r}
 CV.phat.values <- vector("numeric", length(tab.AIC$m))
@@ -339,7 +357,7 @@ print("Cluster size standard deviation:")
 sd(data_clustersize$cluster_size)
 ```
 
-The estimated abundance of individual animals (`abund_survey_individuals`) is obtained by multiplying the estimated number of groups (`no_groups`) for the mean cluster size.
+The estimated abundance of individual animals (`abund_survey_individuals`) is obtained by multiplying the estimated number of groups (`no_groups`) for the mean cluster size (obviously, if all groups are made of 1 individual only, the estimates of the number of groups and animals are equal).
 
 ```{r individuals}
 no_groups*mean(data_clustersize$cluster_size) -> abund_survey_individuals # estimated abundance, individuals
@@ -359,7 +377,11 @@ cv_tot <- sqrt(cv_detfunc^2 + cv_clustersize^2 + cv_encounterrate^2)
 
 component = c("Encounter rate", "Cluster size", "Detection function", "Abundance")
 CV = c(cv_encounterrate, cv_clustersize, cv_detfunc[[1]], cv_tot[[1]])
-data.frame(component, CV)
+sd = c(cv_encounterrate*mean(res$encounter_rate),
+       cv_clustersize*mean(data_clustersize$cluster_size),
+       (cv_detfunc*phatInterval(fitVU)[1])[[1]],
+       (cv_tot*abund_survey_individuals)[[1]])
+data.frame(component, CV = round(CV,3), sd = round(sd, 3))
 ```
 
 
@@ -387,19 +409,25 @@ as.data.frame(do.call(rbind, stats)) -> statistics
 colnames(statistics) <- NULL
 statistics
 
-if(cv_clustersize == 0){
-  ind_min <- stats_df_groups$NhatLower
-  ind_max <- stats_df_groups$NhatUpper
-} else {
-  (abund_survey_individuals[[1]]-(abund_survey_individuals[[1]]/cv_tot)*1.96)[[1]] -> ind_min
-  (abund_survey_individuals[[1]]+(abund_survey_individuals[[1]]/cv_tot)*1.96)[[1]] -> ind_max
-}
+D <- (abund_survey_individuals[[1]]/surveyed_area)
+varD <- (cv_tot^2) * (D^2)
+log(1+(varD/D^2)) -> var_logD
+C <- exp(1.96*sqrt(var_logD))
+D_min <- D/C[[1]]
+D_max <- D*C[[1]]
+ind_min <- D_min*surveyed_area
+ind_max <- D_max*surveyed_area
+# based on Buckland et al. 1993, Ch. 3, pp. 88-89
 
 # rows = c("Average p", "N groups", "N individuals")
-Estimate = c(stats_df_groups$phat, stats_df_groups$Nhat, abund_survey_individuals[[1]])
+Estimate = c(stats_df_groups$phat,
+             stats_df_groups$Nhat,
+             abund_survey_individuals[[1]])
 Lower = c(stats_df_groups$lower.bound, stats_df_groups$NhatLower, ind_min)
 Upper = c(stats_df_groups$upper.bound, stats_df_groups$NhatUpper, ind_max)
-data.frame(Estimate,Lower,Upper) -> results
+data.frame(Estimate = round(Estimate,3),
+           Lower = round(Lower,3),
+           Upper = round(Upper,3)) -> results
 row.names(results) <- c("Average p", "N groups", "N individuals")
 results
 ```

@@ -23,7 +23,7 @@ summary.dsm.var.vale <-
 #' @author David L. Miller
 #' @importFrom stats qnorm
 # @importFrom mgcv uniquecombs
-summary.dsm.var <- function(object, alpha=0.05, boxplot.coef=1.5,
+function(object, alpha=0.05, boxplot.coef=1.5,
                             bootstrap.subregions=NULL, ...){
   
   # storage
