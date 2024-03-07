@@ -42,7 +42,7 @@ check.cols <-
 
 
 #' @importFrom stats aggregate
-make.data_vlm <- 
+make.data_mod <- 
   
   function(response, ddfobject, segdata, obsdata, group,
                           convert.units, availability, segment.area,
@@ -328,7 +328,7 @@ make.data_vlm <-
 }
 
 
-dsm_vale <- 
+dsm_mod <- 
   
   function (formula, ddf.obj, segment.data, observation.data, engine = "gam", dat, 
                       convert.units = 1, family = quasipoisson(link = "log"), group = FALSE, 
@@ -409,7 +409,7 @@ dsm_vale <-
   }
 
 
-summary.dsm.var_vale <- 
+summary.dsm.var_mod <- 
   
   function(object, detfunc, alpha=0.05, boxplot.coef=1.5,
                                  bootstrap.subregions=NULL, fName = "h.RE"){

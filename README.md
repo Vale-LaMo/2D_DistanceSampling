@@ -19,5 +19,5 @@ The input data are in the *data* folder.
 The *functions* folder includes the scripts with the (customized) R functions.   
 The *output* folder is meant to store the results of the analyses (mainly fitted models but also datasets produced in the first stage of the analysis and then used for DSMs).   
 
-The list of packages needed for the analyses is reported at the beginnin of each *.Rmd* file. Please make sure to install them before running the code. The LT2D package should be installed via devtools.
+The list of packages needed for the analyses is reported at the beginning of each *.Rmd* file. Please make sure to install them before running the code. The LT2D package should be installed via devtools.
 

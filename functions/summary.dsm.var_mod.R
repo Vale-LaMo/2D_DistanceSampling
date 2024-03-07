@@ -1,4 +1,4 @@
-summary.dsm.var.vale <- 
+summary.dsm.var_mod <- 
   #' Summarize the variance of a density surface model
   #'
   #' Gives a brief summary of a fitted \code{dsm} variance object.

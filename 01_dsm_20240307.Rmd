@@ -2,10 +2,10 @@
 title: "Density surface modelling"
 params:
   seed_no: 16
-  species_name: "impala"
-  segdata_file: "segments400.xlsx"
-  obsdata_file: "obsdata_impala.xlsx"
-  preddata_file: "grid400_vlm.xlsx"
+  species_name: "duiker"
+  segdata_file: "segdata_duiker.xlsx"
+  obsdata_file: "obsdata_duiker.xlsx"
+  preddata_file: "preddata_duiker.xlsx"
   convertion_km_m: !expr 1/1000
 output:
   html_notebook:
@@ -19,10 +19,10 @@ output:
     toc: yes
   pdf_document:
     toc: yes
+editor_options: 
+  markdown: 
+    wrap: 72
 ---
-
-**THIS FILE IS WORK IN PROGRESS**
-
 
 ```{r packages, message=FALSE}
 # install.packages(c("dsm", "Distance", "distill", "rgdal",
@@ -38,9 +38,9 @@ library(LT2D)
 library(dsm)
 library(Distance)
 library(distill)
-library(rgdal)
+# library(rgdal)
 library(plyr)
-library(maptools)
+# library(maptools)
 library(tweedie)
 ```
 
@@ -49,22 +49,25 @@ library(tweedie)
 source("functions/com_hfunctions.R")
 source("functions/com_pifunctions.R")
 source("functions/com_likelihoodutilities.R")
-source("functions/GoFy_vlm.R") # custom GoFy function, modified by VLM 2022-11-11
+source("functions/GoFy_mod.R") # custom GoFy function, modified by VLM 2022-11-11
 source("functions/dsm_custom_functions.R")
 ```
 
-In this notebook, we follow up on the distance sampling analyses in two dimensions, and we use the corrected detection function, taking into account the behavioral response of the animals, to fit a density surface model (DSM, **insirire citazione**) to the data. Also considering that the precision in density estimates may be largely affected by the spatial variation in the data (e.g., large variance in the encounter rate), the DSM is expected to produce an increase in the precision of the final estimates by modelling the spatial component.
+In this notebook, we follow up on the distance sampling analyses in two dimensions, and we use the corrected detection function, taking into account the behavioral response of the animals, to fit a density surface model (DSM, Hedley & Buckland 2004, Miller et al. 2013) to the data. Indeed, DSMs follow a two-stage approach: after accounting for detectability via distance sampling methods, they then model distribution via a generalized additive model. Considering that the precision in density estimates may be largely affected by the spatial variation in the data (e.g., large variance in the encounter rate), the DSM is expected to produce an increase in the precision of the final estimates by modelling the spatial component.
 
-# Data preparation: impala
+**Analyses for `r params$species_name`**
+
+# Data preparation
 
 ## Data import
 
-First of all, we need to prepare the data for the following DSM analysis.
-We need three data.frames:
+First of all, we need to prepare the data for the following DSM analysis. We need three data.frames:
 
-- **segdata** holds the segment data (transects “chopped” into segments), with all the covariates
-- **obsdata** obsdata links the distance data (already used in the previous step of the analysis to fit the detection function) to the segments
-- **preddata** holds the prediction grid (which includes all the necessary covariates)
+-   **segdata** holds the segment data (transects "chopped" into segments), with all the covariates
+-   **obsdata** obsdata links the distance data (already used in the previous step of the analysis to fit the detection function) to the segments
+-   **preddata** holds the prediction grid (which includes all the necessary covariates)
+
+For detailed instructions on data preparation, and in particular for the **segdata**, you car refer to the above mentioned publications (Hedley & Buckland 2004, Miller et al. 2013), but also to <https://distancesampling.org>, and to the GitHub (<https://https://github.com/DistanceDevelopment/dsm/>) and Wiki (<https://https://github.com/DistanceDevelopment/dsm/wiki>) pages.
 
 *Please note that when reading the file, we specify the column types: make sure to maintain the recommended order of the columns to avoid errors in the procedure; additional columns could of course be added, or the order changed, but then you will have to modify the `col_types` argument accordingly*
 
@@ -77,18 +80,18 @@ segdata <- read_excel(paste("data/",params$segdata_file,sep=""),
                       col_types = c(rep("text", 2),
                                     rep("numeric", 3)))
 head(segdata)
+segdata$Effort <- segdata$Effort/1000 # effort now expressed in km
 ```
+
 The `segdata` dataset (Excel file) should include the following columns (order matters):
 
-- `area`: surface of the study area, in km\(^2\)
-- `Transect.Label`: transect label (it could be a number or a letter)
-- `Sample.Label`: label that identifies the segment within a transect, it is composed by the transect label (`Transect.Label`), a separator (e.g., -), and a unique identifier of the segment within the transect
-- `x`: x-coord of the center of the segment
-- `y`: y-coord of the center of the segment
-- `Effort`: length of the segment, in m
+-   `Transect.Label`: transect label (it could be a number or a letter)
+-   `Sample.Label`: label that identifies the segment within a transect, it is composed by the transect label (`Transect.Label`), a separator (e.g., -), and a unique identifier of the segment within the transect
+-   `x`: x-coord of the center of the segment
+-   `y`: y-coord of the center of the segment
+-   `Effort`: length of the segment, in m
 
-and additional, optional columns can be added, to describe the segments in terms of environmental covariates (e.g., information on habitats, distance from water sources or from anthropic areas such as villages, altitude, ...).
-All optional fields can have empty cells (or *NA*) in the Excel file (although this will affect their use in the following modelling procedures). On the contrary, *NA*s are not admitted in the fields: `area`, `Transect.Label`, `Sample.Label`, `x`, `y`, `Effort`. 
+and additional, optional columns can be added, to describe the segments in terms of environmental covariates (e.g., information on habitats, distance from water sources or from anthropic areas such as villages, altitude, ...). All optional fields can have empty cells (or *NA*) in the Excel file (although this will affect their use in the following modelling procedures). On the contrary, *NA*s are not admitted in the fields: `area`, `Transect.Label`, `Sample.Label`, `x`, `y`, `Effort`.
 
 ```{r obsdata-loading}
 obsdata <- read_excel(paste("data/",params$obsdata_file,sep=""),
@@ -97,15 +100,16 @@ obsdata <- read_excel(paste("data/",params$obsdata_file,sep=""),
                                     "text",
                                     rep("numeric", 3)))
 head(obsdata)
+obsdata$Effort <- obsdata$Effort/1000 # effort now expressed in km
 ```
 
 The `obsdata` dataset (Excel file) should include the following columns (order matters):
 
-- `object`: a progressive number to identify each record (*i.e.*, 1,2,3,4,...) - this field connects the `obsdata` table to the data used in the previous analysis to fit the detection function (`data_trunc_SPECIES NAME`)
-- `Sample.Label`: label that identifies the segment within a transect, it is composed by the transect label (`Transect.Label`), a separator (e.g., -), and a unique identifier of the segment within the transect - this field connects the `obsdata` table to the `segdata` table
-- `x`: x-coord of the group of animals (optional)
-- `y`: y-coord of the group of animals (optional)
-- `Effort`: length of the segment, in m (optional)
+-   `object`: a progressive number to identify each record (*i.e.*, 1,2,3,4,...) - this field connects the `obsdata` table to the data used in the previous analysis to fit the detection function (`data_trunc_SPECIES NAME`)
+-   `Sample.Label`: label that identifies the segment within a transect, it is composed by the transect label (`Transect.Label`), a separator (e.g., -), and a unique identifier of the segment within the transect - this field connects the `obsdata` table to the `segdata` table
+-   `x`: x-coord of the group of animals (optional)
+-   `y`: y-coord of the group of animals (optional)
+-   `Effort`: length of the segment, in m (optional).   
 The `x` and `y` fields can have empty cells (or *NA*) in the Excel file. On the contrary, *NA*s are not admitted in the fields: `object`, `Sample.Label`, `Effort`.
 
 For the observations, we have to consider the ones already used in the previous step of the analysis to fit the detection function. Thus, we load the corresponding *.RData* file and we link the two datasets (`obsdata` and `trunc_data`) using the `object` field to obtain the final `obsdata` object.
@@ -129,23 +133,15 @@ head(obsdata)
 
 Please note that a column `ddfobj` has been added to identify the detection function used (in this case there is only one so it is a constant). The same column has been added to the `segdata` table as well.
 
-
 ```{r preddata-loading}
 #### Load dataset
 preddata <- read_excel(paste("data/", params$preddata_file, sep = ""),
                       col_types = rep("numeric", 4))
 head(preddata)
+preddata$area <- preddata$area/1000000
 ```
 
-
-Finally, the `preddata` dataset (Excel file) should include at least the following columns:
-- `id`: a unique identifier for each grid cell in the study area
-- `x`: x-coord of the center of the cell
-- `y`: y-coord of the center of the cell
-- `area`: the area of each cell (in m\(^2\))
-Please pay attention to the coordinates of the cells, that should be in the same reference system used for the other datasets, in particular the `segdata`.
-Additional columns including the values for environmental covariates can also be included.
-
+Finally, the `preddata` dataset (Excel file) should include at least the following columns: - `id`: a unique identifier for each grid cell in the study area - `x`: x-coord of the center of the cell - `y`: y-coord of the center of the cell - `area`: the area of each cell (in m$^2$) Please pay attention to the coordinates of the cells, that should be in the same reference system used for the other datasets, in particular the `segdata`. Additional columns including the values for environmental covariates can also be included.
 
 ## Detection function
 
@@ -178,6 +174,7 @@ bind_cols(p=p.xfit.std, gridx.df) -> fitted.p.df
 bind_cols(p=p.xfit, gridx.df) -> fitted.p.df
 fitted.p.df
 ```
+
 Moreover, we need to store the information on detection probabilities in a *fake* detection function object, that will be called by the DSM functions later on.
 
 ```{r detection-function-fake}
@@ -203,7 +200,7 @@ fake.ddf
 In order to fit the DSMs, first of all we prepare all the above mentioned data using a customized `make.data` function
 
 ```{r}
-dat <- make.data_vlm(response = "abundance.est", ddfobject = fitVU,
+dat <- make.data_mod(response = "abundance.est", ddfobject = fitVU,
                      segdata, obsdata, group = FALSE,
                      convert.units = params$convertion_km_m,
                      availability = 1,
@@ -211,15 +208,17 @@ dat <- make.data_vlm(response = "abundance.est", ddfobject = fitVU,
                      family = tw())
 dat
 ```
+
 We can now fit the `dsm` to these data:
 
 ```{r dsm-fit}
-mod1<-dsm_vale(abundance.est ~ s(x,y), fake.ddf,
-               segment.data, observation.data, dat = dat,
-               convert.units = params$convertion_km_m, group = FALSE)
+mod1<-dsm_mod(abundance.est ~ s(x,y), fake.ddf,
+              segment.data, observation.data, dat = dat,
+              # convert.units = 1,
+              convert.units = params$convertion_km_m,
+              group = FALSE)
 summary(mod1)
 ```
-
 
 # Prediction
 
@@ -231,12 +230,13 @@ mod1.pred <- predict(mod1, preddata, preddata$area)
 # calculate the predicted abundance over the grid
 print("Predicted abundance (no. individuals) over the grid:")
 sum(mod1.pred)
+limit <- summary(mod1.pred)[5]*1.5
+sum(mod1.pred[mod1.pred<limit])
 # plot the smooth
 plot(mod1)
 ```
 
 We now estimate the variance for the model:
-
 
 ```{r dsm-variance}
 ## --- Variance estimation for the chosen model ----
@@ -246,14 +246,13 @@ dsm.var.subset <- dsm_var_gam(dsm.obj=mod1, pred.data=preddata.varprop.subset,
                               off.set = offset.varprop.subset, #seglen.varname = "Effort", 
                               type.pred = "response")
 # summary(dsm.var.subset)
-summary.dsm.var_vale(object = dsm.var.subset, detfunc = fitVU)
-
+summary.dsm.var_mod(object = dsm.var.subset, detfunc = fitVU)
 
 ```
 
 ## Maps of abundance and uncertainty
 
-Finally, we can plot the results to show the abundances within the study area, and the corresponding uncertainty map
+Finally, we can plot the results to show the abundances within the study area, and the corresponding uncertainty map. The spatially explict abundance data are also saved to a .csv file (`r paste("DSMresults_", params$species_name, ".csv")`, in the output folder) for later use in a GIS software, if needed.
 
 ```{r dsm-maps}
 ## ---- prediction and plot Nhat and uncertainty ----
@@ -305,12 +304,7 @@ write.csv(pp,paste("output/DSMresults_", params$species_name,
 # sum(pp.uncertainty$Nhat)
 ```
 
+# References
 
-
-
-
-
-
-
-
-
+Hedley SL, Buckland ST. Spatial models for line transect sampling. Journal of Agricultural, Biological, and Environmental Statistics. 2004;9(2):181--199.\
+Miller DL, Burt ML, Rexstad EA, Thomas L. Spatial models for distance sampling data: recent developments and future directions. Methods in Ecology and Evolution. 2013;4(11):1001--1010. doi: 10.1111/2041-210X.12105.

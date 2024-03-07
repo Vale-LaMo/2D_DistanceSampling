@@ -1,4 +1,4 @@
-GoFy_vlm <- 
+GoFy_mod <- 
 function (fit, plot = FALSE, dotitle = FALSE) 
 {
   ystart = fit$ystart

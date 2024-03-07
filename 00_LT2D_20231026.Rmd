@@ -2,7 +2,7 @@
 title: "2D distance sampling"
 params:
   species_name: impala
-  input_file: impala_vlm.xlsx
+  input_file: distdata_impala.xlsx
   trunc_perp_dist_perc: 5
   trunc_forw_dist_m: 150
   h.function: h.RE
@@ -13,15 +13,15 @@ params:
   sd: 6
   n_models: 200
 output:
+  word_document:
+    toc: yes
+  html_document:
+    df_print: paged
   html_notebook:
     toc: yes
     toc_float: yes
     code_folding: hide
     theme: cosmo
-  html_document:
-    df_print: paged
-  word_document:
-    toc: yes
   pdf_document:
     toc: yes
 ---
@@ -42,7 +42,7 @@ library(LT2D)
 source("functions/com_hfunctions.R")
 source("functions/com_pifunctions.R")
 source("functions/com_likelihoodutilities.R")
-source("functions/GoFy_vlm.R") # custom GoFy function, modified by VLM 2022-11-11
+source("functions/GoFy_mod.R") # custom GoFy function, modified by VLM 2022-11-11
 source("functions/plotfit.x.red.R") # custom function, modified by VLM 2023-08-31, to have a red line instead of a grey one
 ```
 
@@ -73,8 +73,8 @@ First of all, we need to import the data. The dataset (Excel file) should includ
 - `transect_length`: length of the transect, in km
 - `detected`: a field whose value is 1 in case of detection of a group of animals, 0 otherwise
 - `object`: a progressive number to identify each record (*i.e.*, 1,2,3,4,...)
-- `perp_dist`: perpendicular distance to the observer (only if the group has been detected)
-- `forw_dist`: forward distance to the observer (only if the group has been detected)
+- `perp_dist`: perpendicular distance to the observer (only if the group has been detected), in meters
+- `forw_dist`: forward distance to the observer (only if the group has been detected), in meters
 - `cluster_size`: number of animals in the group (optional, only if the group has been detected)
 - `obs_time`: date and time stamp (optional)
 - `X_observer`: x-coord of the observer (optional)
@@ -115,7 +115,7 @@ data_clean <-
 data_clean$forw_dist <- abs(data_clean$forw_dist) # we make sure all distances are positive (see Discussion for details)
 ```
 
-The following plot clearly shows the avoidance of animals with respect to the transect (indicated by the gap with no points along the *x* axis, from 0 to nearly 20 m):
+The following plot shows the distribution of forward distances with respect to perpendicular distances:
 
 ```{r plot-avoidance}
 plot(data_clean$perp_dist, data_clean$forw_dist,
@@ -304,7 +304,7 @@ We also verify the goodness of fit in the forward dimension
 ```{r}
 # GoF for forward distances
 fName = params$pi.function
-GoFy_vlm(fitVU,plot=TRUE)$pvals
+GoFy_mod(fitVU,plot=TRUE)$pvals
 # plotfit.smoothfy(fitVU,nclass=32);rug(x=y[x<=w])
 # plotfit.y(y[x<=w & y<=ystart],x,fitVU,nclass=20);rug(x=y[x<=w])
 plotfit.smoothfy(fitVU,xmax=199)
