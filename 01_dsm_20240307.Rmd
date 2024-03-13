@@ -2,10 +2,10 @@
 title: "Density surface modelling"
 params:
   seed_no: 16
-  species_name: "duiker"
-  segdata_file: "segdata_duiker.xlsx"
-  obsdata_file: "obsdata_duiker.xlsx"
-  preddata_file: "preddata_duiker.xlsx"
+  species_name: "impala"
+  segdata_file: "segdata_impala.xlsx"
+  obsdata_file: "obsdata_impala.xlsx"
+  preddata_file: "preddata_impala_new.xlsx"
   convertion_km_m: !expr 1/1000
 output:
   html_notebook:
@@ -212,7 +212,7 @@ dat
 We can now fit the `dsm` to these data:
 
 ```{r dsm-fit}
-mod1<-dsm_mod(abundance.est ~ s(x,y), fake.ddf,
+mod1<-dsm_mod(abundance.est ~ s(x,y,k=4), fake.ddf,
               segment.data, observation.data, dat = dat,
               # convert.units = 1,
               convert.units = params$convertion_km_m,
@@ -246,8 +246,8 @@ dsm.var.subset <- dsm_var_gam(dsm.obj=mod1, pred.data=preddata.varprop.subset,
                               off.set = offset.varprop.subset, #seglen.varname = "Effort", 
                               type.pred = "response")
 # summary(dsm.var.subset)
+fName = "h.RE"
 summary.dsm.var_mod(object = dsm.var.subset, detfunc = fitVU)
-
 ```
 
 ## Maps of abundance and uncertainty
