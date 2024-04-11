@@ -5,7 +5,7 @@
 
 list.h = c("h.RE","h.yTRE","h.yTEE","h.HBDF","h.HBDFg0","h.IP3","h.IP","h.EP3","h.IP4","h.EP4","h.SS","h.okamura","h.const")
 
-h.RE=function(y,x,b) { ## Radial exponential (half normal), noted h1 in Borchers et al. 2016
+h.RE=function(y,x,b) { ## Radial exponential (half normal), noted h1 in Borchers et al. 2016, HB in Borcher and Cox 2017
 #'@references Hayes, R. J., and S. T. Buckland. "Radial-distance models for the line-transect method." Biometrics (1983): 29-42.
   if(length(b)!=2) {
     cat(b,"\n")

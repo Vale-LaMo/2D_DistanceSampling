@@ -2,11 +2,11 @@
 title: "Density surface modelling"
 params:
   seed_no: 16
-  species_name: "impala"
-  segdata_file: "segdata_impala.xlsx"
-  obsdata_file: "obsdata_impala.xlsx"
-  preddata_file: "preddata_impala_new.xlsx"
-  convertion_km_m: !expr 1/1000
+  species_name: "duiker"
+  segdata_file: "segdata_duiker.xlsx"
+  obsdata_file: "obsdata_duiker.xlsx"
+  preddata_file: "preddata_duiker_new.xlsx"
+  conversion_km_m: !expr 1
 output:
   html_notebook:
     toc: yes
@@ -80,7 +80,7 @@ segdata <- read_excel(paste("data/",params$segdata_file,sep=""),
                       col_types = c(rep("text", 2),
                                     rep("numeric", 3)))
 head(segdata)
-segdata$Effort <- segdata$Effort/1000 # effort now expressed in km
+segdata$Effort <- segdata$Effort # effort now expressed in m
 ```
 
 The `segdata` dataset (Excel file) should include the following columns (order matters):
@@ -100,7 +100,7 @@ obsdata <- read_excel(paste("data/",params$obsdata_file,sep=""),
                                     "text",
                                     rep("numeric", 3)))
 head(obsdata)
-obsdata$Effort <- obsdata$Effort/1000 # effort now expressed in km
+obsdata$Effort <- obsdata$Effort # effort now expressed in m
 ```
 
 The `obsdata` dataset (Excel file) should include the following columns (order matters):
@@ -138,7 +138,7 @@ Please note that a column `ddfobj` has been added to identify the detection func
 preddata <- read_excel(paste("data/", params$preddata_file, sep = ""),
                       col_types = rep("numeric", 4))
 head(preddata)
-preddata$area <- preddata$area/1000000
+preddata$area <- preddata$area
 ```
 
 Finally, the `preddata` dataset (Excel file) should include at least the following columns: - `id`: a unique identifier for each grid cell in the study area - `x`: x-coord of the center of the cell - `y`: y-coord of the center of the cell - `area`: the area of each cell (in m$^2$) Please pay attention to the coordinates of the cells, that should be in the same reference system used for the other datasets, in particular the `segdata`. Additional columns including the values for environmental covariates can also be included.
@@ -202,7 +202,7 @@ In order to fit the DSMs, first of all we prepare all the above mentioned data u
 ```{r}
 dat <- make.data_mod(response = "abundance.est", ddfobject = fitVU,
                      segdata, obsdata, group = FALSE,
-                     convert.units = params$convertion_km_m,
+                     convert.units = params$conversion_km_m,
                      availability = 1,
                      segment.area = segdata$Effort*max(fitted.p.df$distance)*2,
                      family = tw())
@@ -215,7 +215,7 @@ We can now fit the `dsm` to these data:
 mod1<-dsm_mod(abundance.est ~ s(x,y,k=4), fake.ddf,
               segment.data, observation.data, dat = dat,
               # convert.units = 1,
-              convert.units = params$convertion_km_m,
+              convert.units = params$conversion_km_m,
               group = FALSE)
 summary(mod1)
 ```
@@ -227,6 +227,7 @@ To predict the abundance, we apply the model to the grid data, obtaining the ove
 ```{r dsm-prediction}
 # predict over a grid
 mod1.pred <- predict(mod1, preddata, preddata$area)
+# mod1.pred <- predict(mod1, preddata, preddata$area*1000)
 # calculate the predicted abundance over the grid
 print("Predicted abundance (no. individuals) over the grid:")
 sum(mod1.pred)

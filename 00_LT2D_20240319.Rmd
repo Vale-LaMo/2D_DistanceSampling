@@ -13,15 +13,15 @@ params:
   sd: 6
   n_models: 200
 output:
-  word_document:
-    toc: yes
-  html_document:
-    df_print: paged
   html_notebook:
     toc: yes
     toc_float: yes
     code_folding: hide
     theme: cosmo
+  html_document:
+    df_print: paged
+  word_document:
+    toc: yes
   pdf_document:
     toc: yes
 ---
@@ -35,6 +35,7 @@ library(mvtnorm)
 #   {install.packages("devtools")}
 # devtools::install_github('david-borchers/LT2D')
 library(LT2D)
+library(Distance)
 ```
 
 ```{r functions}
@@ -113,6 +114,7 @@ data_clean <-
          perp_dist != "NA", # we remove lines with NA distances
          forw_dist != "NA")
 data_clean$forw_dist <- abs(data_clean$forw_dist) # we make sure all distances are positive (see Discussion for details)
+write.csv(data_clean, paste("output/data_clean_",params$species_name,".csv", sep=""))
 ```
 
 The following plot shows the distribution of forward distances with respect to perpendicular distances:
@@ -124,7 +126,6 @@ plot(data_clean$perp_dist, data_clean$forw_dist,
      xlab = "Perpedincular distance",
      ylab = "Forward distance")
 ```
-
 
 
 We now select the truncation distances. For this purpose, we produce histograms and boxplots to identify outliers:
@@ -174,7 +175,6 @@ save(data_trunc, file = paste("output/data_trunc_", params$species_name,".RData"
 ## Model fitting and estimation of the number of groups
 
 We now fit 2D distance sampling model using multiple initial values to avoid local *minima* in the deviance (Elenga et al. 2020).   
-<!-- and we obtain the estimates of the detection probabilities (p-hat) and the number of groups (N) with bootstrap confidence intervals: -->
 As in Elenga et al. (2020), we model the detection function in two dimensions using a radial exponential hazard risk (\(h_{HB}\) under the notation of Borchers & Cox 2017), thereby making the same approximation as the half-normal detection function that is commonly found to describe the detection process in 1D. That is, we use the `h.RE` function of Elenga et al. (2020) for modeling the decay in detection rate with radial distance, and the `pi.sigmo` function of Elenga et al. (2020) for modeling the change in animal density with perpendicular distance to a line-transect (i.e., the behavioural response). See also Elenga et al. (2020), or the files "functions/com_hfunctions.R" and "functions/com_pifunctions.R" for alternative functions.   
 Please note that the functions used are declared in the header of the document, together with the number of parameters that characterize each of them (different functions may have different number of parameters, e.g., 3 params for `h.yTRE`).   
 `r params$n_models` (number set via the parameter `n_models`) are fitted using parameter values extracted from a random distribution, with the initial values for the mean (`starting_values`) and the sd (`sd`) declared in the header. The length of the `starting_values` depends on the number of parameters that characterize the adopted functions (check them if you change function type).
@@ -253,9 +253,7 @@ debug=FALSE
 save(FIT, file = paste("output/FIT_", params$species_name, ".RData", sep = ""), compress = FALSE)
 ```
 
-The best models are identified according to AIC values (\(\Delta\)AIC < 2):
-
-```{r best-models}
+```{r best-models, include=FALSE}
 data.frame(m = 1:params$n_models, modAIC = AICvalues) -> df.AIC
 df.AIC %>% 
   arrange(modAIC) %>% 
@@ -270,7 +268,8 @@ tab.AIC
 #   plotfit.x.red(x[x<=w],FIT[[tab.AIC$m[i]]],nclass=20,nint=100);rug(x[x<=w])
 # }
 ```
-Among them, if more than one, we finally select the model with the lowest CV and we plot it. The figure shows the actual distribution of animals (continuous black line), the "observed" detection function (bold red line) and the "corrected" detection function (dashed black line), that takes into account the behavioural response
+
+The models with the parameter values that provide the best fit are identified and we finally select the model with the lowest CV, and we plot it. The figure shows the actual distribution of animals (continuous black line), the "observed" detection function (bold red line) and the "corrected" detection function (dashed black line), that takes into account the behavioural response
 
 ```{r}
 CV.phat.values <- vector("numeric", length(tab.AIC$m))
@@ -285,12 +284,14 @@ for (i in 1:length(tab.AIC$m)) {
 fitVU = FIT[[best_mod$m]]
 save(fitVU, file = paste("output/fitVU_", params$species_name, ".RData", sep = ""), compress = FALSE)
 ```
+
 ```{r plot-df-red-best-model, eval=TRUE}
 # tryCatch.W.E(plotfit.x.red(x[x<=w],fitVU,nclass=20,nint=100));rug(x[x<=w])
 # see https://github.com/david-borchers/LT2D/blob/master/inst/FitsForPaper.r
 # the original plotfit.x function has been modified to customize the colors
 plotfit.x.red(x[x<=w],fitVU,nclass=20,nint=100);rug(x[x<=w])
 ```
+
 We now perform checks on the model, to verify the goodness of fit in the perpendicular dimension (Kolmogarov-Smirnov and Cramer-von Mises p-values are also reported):
 
 ```{r gof-tests-perp}
@@ -369,28 +370,33 @@ df
 Then, we can estimate the overall coefficient of variation of this estimate using the Delta method. According to this approximation, when two or more components are multiplied together, the squared CVs add. In this case the components of the formula to estimate the abundance (or density) are the encounter rate, the detection function and the cluster size. 
 
 ```{r CVs}
-cv_encounterrate <- (sd(res$encounter_rate)/mean(res$encounter_rate))
+sum(res$no_groups_transect)/sum(res$transect_length) -> ER
+se.encounterrate <- sqrt(varn(res$transect_length, nvec=res$no_groups_transect, type = "R2"))
+cv_encounterrate <- sqrt(varn(res$transect_length, nvec=res$no_groups_transect, type = "R2"))/mean(res$encounter_rate) # based on Fewster et al. 2009
 cv_detfunc <- (phatInterval(fitVU)[2])
-cv_clustersize <- (sd(data_clustersize$cluster_size)/mean(data_clustersize$cluster_size))
+
+sum(data_clustersize$cluster_size)/length(data_clustersize$cluster_size) -> S
+mean.clustersize <- mean(data_clustersize$cluster_size)
+se.clustersize <- sqrt(var(data_clustersize$cluster_size)/length(data_clustersize$cluster_size))
+cv_clustersize <- se.clustersize/mean.clustersize
+# the estimate of cv_clustersize is based on the same calculations performed in the dht function of the Distance package
 
 cv_tot <- sqrt(cv_detfunc^2 + cv_clustersize^2 + cv_encounterrate^2)
 
 component = c("Encounter rate", "Cluster size", "Detection function", "Abundance")
 CV = c(cv_encounterrate, cv_clustersize, cv_detfunc[[1]], cv_tot[[1]])
-sd = c(cv_encounterrate*mean(res$encounter_rate),
-       cv_clustersize*mean(data_clustersize$cluster_size),
+sd = c(se.encounterrate,
+       se.clustersize,
        (cv_detfunc*phatInterval(fitVU)[1])[[1]],
        (cv_tot*abund_survey_individuals)[[1]])
 data.frame(component, CV = round(CV,3), sd = round(sd, 3))
 ```
-
 
 The table with the details of the CVs allows to identify potential issues, e.g. components that strongly affect the overall coefficient of variation.   
 
 # Results - summary
 
 Finally, the essential results of the survey:
-
 
 ```{r main-results}
 stats <- list(dim(data_trunc)[1],
@@ -432,8 +438,67 @@ row.names(results) <- c("Average p", "N groups", "N individuals")
 results
 ```
 
+
+# Comparison with Conventional Distance Sampling
+
+The results of the 2D distance sampling are now compared to those from Conventional Distance Sampling (CDS). We start with the original data and make sure they align with the requirements of the `ds` function - the data frame must include the following fields:   
+*(please note that we limit the estimate of the number of individual to the surveyed area, for comparison with the results of 2D distance sampling)*
+
++ Region.Label - identifier of regions: in this case there is only one region and set to 'Study area' **required field**
++ Area - size of the study region (hectares): in square kilometers in this case
++ Sample.Label - line transect identifier **required field**
++ Effort - length of the line transects (km)  **required field**
++ object - unique identifier for each detected animal or group
++ distance - perpendicular distance (metres) to each detection **required field**
++ Study.Area - this is the name of the study
+
+```{r cds}
+data %>% 
+  mutate(Region.Label = "Study area",
+         Area = surveyed_area) %>% 
+  rename(#Area = area,
+         Sample.Label = transect,
+         Effort = transect_length,
+         distance = perp_dist,
+         size = cluster_size) -> data_cds
+head(data_cds)
+conversion.factor <- convert_units("meter", "kilometer", "Square kilometer")
+cds.hr <- ds(data=data_cds, key="hr", adjustment=NULL,
+             convert_units=conversion.factor,
+             dht_group = FALSE, # group size must be taken into account
+             truncation = threshold)
+plot(cds.hr, main="Hazard rate model, Conventional Distance Sampling")
+# summary(cds.hr)
+```
+
+FARE TABELLINA FINALE O PLOT CON PUNTI E BARRE DI ERRORE CON STIME OTTENUTE CON 1D, 2D, DSM
+
+```{r comparison-table}
+Estimate = c(cds.hr$dht$individuals$N$Estimate, abund_survey_individuals[[1]])
+se = c(cds.hr$dht$individuals$N$se, sd[4])
+cv = c(cds.hr$dht$individuals$N$cv, CV[4])
+Lower = c(cds.hr$dht$individuals$N$lcl, ind_min)
+Upper = c(cds.hr$dht$individuals$N$ucl, ind_max)
+data.frame(Estimate = round(Estimate,3),
+           se = round(se, 3),
+           cv = round(cv, 3),
+           Lower = round(Lower,3),
+           Upper = round(Upper,3)) -> comparison
+row.names(comparison) <- c("CDS", "2D-DS")
+comparison
+```
+```{r comparison-plot}
+library(ggplot2)
+ggplot(comparison, aes(x=row.names(comparison), y=Estimate)) +
+    geom_bar(position=position_dodge(.9), colour="black", stat="identity", fill = "white") +
+    geom_errorbar(position=position_dodge(.9), width=.25, aes(ymin=Lower, ymax=Upper)) +
+    xlab("") + ylab("Estimated N")
+```
+
+
 # References
 
 Borchers DL, Cox MJ (2017) Distance sampling detection functions: 2D or not 2D? Biometrics 73(2):593-602. https://doi.org/10.1111/biom.12581    
 Elenga G, Bonenfant C, Péron G (2020) Distance sampling of duikers in the rainforest: Dealing with transect avoidance. PLOS ONE 15(10): e0240049. https://doi.org/10.1371/journal.pone.0240049
+Fewster, R.M., S.T. Buckland, K.P. Burnham, D.L. Borchers, P.E. Jupp, J.L. Laake and L. Thomas. 2009. Estimating the encounter rate variance in distance sampling. Biometrics 65: 225-236.
 
