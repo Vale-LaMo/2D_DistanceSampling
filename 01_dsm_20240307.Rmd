@@ -6,7 +6,7 @@ params:
   segdata_file: "segdata_duiker.xlsx"
   obsdata_file: "obsdata_duiker.xlsx"
   preddata_file: "preddata_duiker_new.xlsx"
-  conversion_km_m: !expr 1
+  conversion_km_m: !expr 1/200
 output:
   html_notebook:
     toc: yes
@@ -53,7 +53,8 @@ source("functions/GoFy_mod.R") # custom GoFy function, modified by VLM 2022-11-1
 source("functions/dsm_custom_functions.R")
 ```
 
-In this notebook, we follow up on the distance sampling analyses in two dimensions, and we use the corrected detection function, taking into account the behavioral response of the animals, to fit a density surface model (DSM, Hedley & Buckland 2004, Miller et al. 2013) to the data. Indeed, DSMs follow a two-stage approach: after accounting for detectability via distance sampling methods, they then model distribution via a generalized additive model. Considering that the precision in density estimates may be largely affected by the spatial variation in the data (e.g., large variance in the encounter rate), the DSM is expected to produce an increase in the precision of the final estimates by modelling the spatial component.
+In this notebook, we follow up on the distance sampling analyses in two dimensions, and we use the corrected detection function, taking into account the behavioral response of the animals, to fit a density surface model (DSM, Hedley & Buckland 2004, Miller et al. 2013) to the data. Indeed, DSMs follow a two-stage approach: after accounting for detectability via distance sampling methods, they then model distribution via a generalized additive model.
+<!-- Considering that the precision in density estimates may be largely affected by the spatial variation in the data (e.g., large variance in the encounter rate), the DSM is expected to produce an increase in the precision of the final estimates by modelling the spatial component. -->
 
 **Analyses for `r params$species_name`**
 
@@ -230,7 +231,7 @@ mod1.pred <- predict(mod1, preddata, preddata$area)
 # mod1.pred <- predict(mod1, preddata, preddata$area*1000)
 # calculate the predicted abundance over the grid
 print("Predicted abundance (no. individuals) over the grid:")
-sum(mod1.pred)
+# sum(mod1.pred)
 limit <- summary(mod1.pred)[5]*1.5
 sum(mod1.pred[mod1.pred<limit])
 # plot the smooth
@@ -263,8 +264,28 @@ prediction.stdev <- sqrt(dsm.var.subset$pred.var)
 pp <- mutate(as.data.frame(preddata), Nhat = prediction.Nhat)
 pp.uncertainty <- mutate(pp, CV = prediction.CV, stdev = prediction.stdev)
 # plot Nhat
+
+# pNhat <- ggplot(pp) +
+#   geom_tile(aes(x=x, y=y, fill=Nhat, 
+#                 width=1/params$conversion_km_m, 
+#                 height=1/params$conversion_km_m)) +
+#   scale_fill_distiller(palette = "YlGn", direction=2,
+#                        breaks = seq(min(pp$Nhat),max(pp$Nhat), length.out = 4),
+#                        labels = round((seq(min(pp$Nhat),
+#                                            max(pp$Nhat),
+#                                            length.out = 4)/(preddata$area[1]/1000000)),0))+
+#   #                      values = c(seq(0, 60, 60))) +
+#   # scale_fill_distiller(palette = "YlGn", direction=2, trans = "log10", 
+#   #                      name = "log10(Similarity)") +
+#   labs(fill="Nhat") +
+#   theme_minimal() +
+#   coord_equal()
+# print(pNhat)
+
 pNhat <- ggplot(pp) +
-  geom_tile(aes(x=x, y=y, fill=Nhat, width=400, height=400)) +
+  geom_tile(aes(x=x, y=y, fill=Nhat/(preddata$area[1]/1000000), 
+                width=1/params$conversion_km_m, 
+                height=1/params$conversion_km_m)) +
   scale_fill_distiller(palette = "YlGn", direction=2) +
   #                      values = c(seq(0, 60, 60))) +
   # scale_fill_distiller(palette = "YlGn", direction=2, trans = "log10", 
@@ -274,26 +295,15 @@ pNhat <- ggplot(pp) +
   coord_equal()
 print(pNhat)
 
-
 # plot SD
 pSD <- ggplot(pp) +
-  geom_tile(aes(x=x, y=y, fill=prediction.stdev, width=400, height=400)) +
+  geom_tile(aes(x=x, y=y, fill=prediction.stdev/(preddata$area[1]/1000000),
+                width=1/params$conversion_km_m,
+                height=1/params$conversion_km_m)) +
   labs(fill="SD") +
   theme_minimal() +
   coord_equal()
 print(pSD)
-
-# pDens <- ggplot(pp) +
-#   geom_tile(aes(x=x, y=y, fill=Nhat/0.160000, width=400, height=400)) +
-#   scale_fill_distiller(palette = "YlGn", direction=2) +
-#   #                      values = c(seq(0, 60, 60))) +
-#   # scale_fill_distiller(palette = "YlGn", direction=2, trans = "log10", 
-#   #                      name = "log10(Similarity)") +
-#   labs(fill="density") +
-#   theme_minimal() +
-#   coord_equal()
-# print(pDens)
-
 
 ## ---- save abundance map for GIS ----
 write.csv(pp,paste("output/DSMresults_", params$species_name,

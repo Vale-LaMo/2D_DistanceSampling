@@ -31,15 +31,16 @@ params$n_pipars <- 2
 
 #### Load dataset
 # data <- read.csv("data/SAMPLE.csv")
-data <- read.csv("data/DUIKERSIMULA.csv")
+# data <- read.csv("data/DUIKERSIMULA.csv")
+data <- read.csv("data/impalasimula.csv")
 colnames(data) <- c("perp_dist", "forw_dist", "samplesize", "replicate", "id")
 data %>% 
   mutate(detected = 1,
          id_survey = paste(samplesize,replicate,sep="-")) -> data
 head(data)
 
-data %>% 
-  filter(replicate == 1) -> data
+# data %>% 
+#   filter(replicate == 1) -> data
 
 #### Dealing with NA and non-detections
 data_clean_tot <- 
@@ -56,7 +57,7 @@ fitVU <- vector("list",length(unique(data_clean_tot$id_survey)))
 best_mod <- vector("list",length(unique(data_clean_tot$id_survey)))
 cvs <- vector("list",length(unique(data_clean_tot$id_survey)))
 # for (i in 1:3) {
-for (i in 1:length(unique(data_clean_tot$id_survey))) {
+for (i in 31:length(unique(data_clean_tot$id_survey))) {
   print(i)
   data_clean <- filter(data_clean_tot, id_survey == unique(id_survey)[i])
   
@@ -187,22 +188,88 @@ for (i in 1:length(unique(data_clean_tot$id_survey))) {
   
 }
 
-
-
-do.call("rbind",stats_df_groups) -> cvs_simula 
+do.call("rbind",stats_df_groups) %>% 
+  filter(CV.phat <= 1) -> cvs_simula 
   # mutate(id_survey = unique(data_clean_tot$id_survey),
   #        sample_size = as.numeric(str_extract(id_survey, "[0-9]+")))-> cvs_simula
 
 import_plex_sans()
-ggplot(cvs_simula, aes(x = sample_size, y = CV.phat)) +
+
+data_summary <- function(data, varname, groupnames){
+  # require(plyr)
+  summary_func <- function(x, col){
+    c(mean = mean(x[[col]], na.rm=TRUE),
+      sd = sd(x[[col]], na.rm=TRUE))
+  }
+  data_sum<-ddply(data, groupnames, .fun=summary_func,
+                  varname)
+  data_sum <- rename(data_sum, c("mean" = varname))
+  return(data_sum)
+}
+
+cvs_simula_grouped <- data_summary(cvs_simula, varname="CV.phat", 
+                                   groupnames=c("sample_size"))
+# Convert dose to a factor variable
+cvs_simula_grouped$sample_size = as.factor(cvs_simula_grouped$sample_size)
+
+
+# # sysfonts::font_add_google("Roboto Condensed")
+# # import_roboto_condensed()
+# # update_geom_font_defaults(font_rc_light)
+# import_plex_sans()
+# extrafont::font_import()
+ggplot(cvs_simula_grouped, aes(x = sample_size, y = CV.phat)) +
   geom_point() +
-  geom_line() +
-  # scale_color_ipsum() +
-  # scale_fill_ipsum() +
+  # geom_line() +
+  geom_errorbar(aes(ymin=CV.phat-sd, ymax=CV.phat+sd), width=.3,
+                position=position_dodge(0)) +
+  scale_x_discrete(expand=c(0,0)) +
+  scale_y_continuous(expand=c(0,0), limits=c(0, 0.35)) +
+  xlab("Sample size") +
+  ylab("CV") +
+  # theme(axis.text.y=element_blank()) +
+  labs(
+    # title="IBM Plex Sans Test",
+    # subtitle="This is a subtitle to see the how it looks in IBM Plex Sans",
+    # caption="Source: hrbrthemes & IBM"
+  ) +
+  theme_ipsum_ps(axis_title_size = 15)
+  # scale_color_manual(values=c('#E69F00'))
+  # scale_color_manual(values=c('#999999','#E69F00'))
+  # scale_color_ipsum(scales::pal_hue()) +
+  # scale_fill_ipsum(scales::pal_hue())
   # theme_ipsum(grid = "XY") +
   theme_pubr()
   # geom_pointrange()
 
+# flush_ticks(p)
 
+  smoothingSpline = smooth.spline(cvs_simula$sample_size, cvs_simula$CV.phat, spar=0.35)
+  plot(cvs_simula$sample_size, cvs_simula$CV.phat)
+  lines(smoothingSpline)
 
+cvs_simula %>% 
+  filter(sample_size != 25) %>%
+  filter(sample_size != 75) %>% 
+  filter(sample_size != 175) %>% 
+  filter(sample_size <= 200) -> cvs_simula2
+qplot(cvs_simula2$sample_size, cvs_simula2$CV.phat, geom='smooth', span =0.5) +
+  xlab("Sample size") +
+  ylab("CV") +
+  # scale_x_discrete(expand=c(0,0), breaks = c(50,100,150,200)) +
+  # scale_y_continuous(expand=c(0,0), limits=c(0, 0.2)) +
+  theme_ipsum_ps(axis_title_size = 15, grid = "XY")
 
+# save(fitVU, file="output/simula/duiker_fitVU.RData", compress = F)
+# save(best_mod, file="output/simula/duiker_bestmod.RData", compress = F)
+# save(cvs, file="output/simula/duiker_cvs.RData", compress = F)
+# save(stats_df_groups, file="output/simula/duiker_statsdfgroups.RData", compress = F)
+
+# save(fitVU, file="output/simula/impala_fitVU.RData", compress = F)
+# save(best_mod, file="output/simula/impala_bestmod.RData", compress = F)
+# save(cvs, file="output/simula/impala_cvs.RData", compress = F)
+# save(stats_df_groups, file="output/simula/impala_statsdfgroups.RData", compress = F)
+
+# Error in integrate(h, y[i], ymax, x = x[i], b = b, subdivisions = 1000L) :
+#   the integral is probably divergent
+ 

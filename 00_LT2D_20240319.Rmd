@@ -1,8 +1,8 @@
 ---
 title: "2D distance sampling"
 params:
-  species_name: impala
-  input_file: distdata_impala.xlsx
+  species_name: duiker
+  input_file: distdata_duiker.xlsx
   trunc_perp_dist_perc: 5
   trunc_forw_dist_m: 150
   h.function: h.RE
@@ -36,6 +36,7 @@ library(mvtnorm)
 # devtools::install_github('david-borchers/LT2D')
 library(LT2D)
 library(Distance)
+library(patchwork)
 ```
 
 ```{r functions}
@@ -119,14 +120,49 @@ write.csv(data_clean, paste("output/data_clean_",params$species_name,".csv", sep
 
 The following plot shows the distribution of forward distances with respect to perpendicular distances:
 
-```{r plot-avoidance}
+```{r plot-avoidance, warning=FALSE}
+opar <- par(pty="s")
 plot(data_clean$perp_dist, data_clean$forw_dist,
-     xlim=c(0,max(data_clean$perp_dist)),
-     ylim=c(0,max(data_clean$forw_dist)),
-     xlab = "Perpedincular distance",
-     ylab = "Forward distance")
-```
+     xlim=c(0,max(c(data_clean$perp_dist,data_clean$forw_dist))),
+     ylim=c(0,max(c(data_clean$perp_dist,data_clean$forw_dist))),
+     xlab = "Perpedincular distance (m)",
+     ylab = "Forward distance (m)")
+par(opar)
 
+# # figura per paper, sia duiker sia impala
+# tiff(paste("figs/avoidance_plot_",params$species_name,".tiff",sep = ""),
+#      height = 14, width = 14, units = "cm", res = 300, compression = "lzw",
+#      pointsize = 10)
+# par(pty="s")
+# plot(data_clean$perp_dist, data_clean$forw_dist,
+#      xlim=c(0,max(c(data_clean$perp_dist,data_clean$forw_dist))),
+#      ylim=c(0,max(c(data_clean$perp_dist,data_clean$forw_dist))),
+#      xlab = "Perpedincular distance (m)",
+#      ylab = "Forward distance (m)")
+# dev.off()
+
+# figura in ggplot, non usata
+# ggplot(data_clean, aes(x = perp_dist, y = forw_dist)) +
+#   geom_point(shape = 21, size = 2) +
+#   scale_x_continuous(expand=c(0,0), limits=c(0, 100))+
+#   scale_y_continuous(expand=c(0,0), limits=c(0, 100)) +
+#   xlab("Perpedincular distance (m)") +
+#   ylab("Forward distance (m)") +
+#   # theme(axis.text.y=element_blank()) +
+#   labs(
+#     # title="IBM Plex Sans Test",
+#     # subtitle="This is a subtitle to see the how it looks in IBM Plex Sans",
+#     # caption="Source: hrbrthemes & IBM"
+#   ) +
+#   # theme_ipsum_ps(axis_title_size = 12) +
+#   theme_minimal() +
+#   theme(aspect.ratio=1) -> p_avoidance
+# if (params$species_name == "duiker") tag = "(a)" else tag = "b"
+# p_avoidance + plot_annotation(tag_levels = list(c(tag), '1')) +
+#   theme(plot.tag.position = c(0.02, 1.04))
+# ggsave(paste("figs/avoidance_plot_",params$species_name,".tiff",sep = ""))
+# # p_avoidance
+```
 
 We now select the truncation distances. For this purpose, we produce histograms and boxplots to identify outliers:
 
@@ -269,7 +305,7 @@ tab.AIC
 # }
 ```
 
-The models with the parameter values that provide the best fit are identified and we finally select the model with the lowest CV, and we plot it. The figure shows the actual distribution of animals (continuous black line), the "observed" detection function (bold red line) and the "corrected" detection function (dashed black line), that takes into account the behavioural response
+The models with the parameter values that provide the best fit are identified and we finally select the model with the lowest CV, and we plot it. The figure shows the actual distribution of animals (continuous black line), the "observed" detection function (bold red line) and the "corrected" detection function (dashed black line), that takes into account the behavioral response.
 
 ```{r}
 CV.phat.values <- vector("numeric", length(tab.AIC$m))
@@ -290,6 +326,19 @@ save(fitVU, file = paste("output/fitVU_", params$species_name, ".RData", sep = "
 # see https://github.com/david-borchers/LT2D/blob/master/inst/FitsForPaper.r
 # the original plotfit.x function has been modified to customize the colors
 plotfit.x.red(x[x<=w],fitVU,nclass=20,nint=100);rug(x[x<=w])
+
+# # # paper fig for duiker
+# tiff(paste("figs/detection_plot_",params$species_name,".tiff",sep = ""), res=300,
+#      compression = "lzw", width = 14, height = 9.5, units = "cm", pointsize = 10)
+# plotfit.x.red(x[x<=w],fitVU,nclass=20,nint=100);rug(x[x<=w])
+# dev.off()
+
+# # paper fig for impala
+# source("functions/plotfit.x.red.impala.R")
+# tiff(paste("figs/detection_plot_",params$species_name,".tiff",sep = ""), res=300,
+#      compression = "lzw", width = 14, height = 9.5, units = "cm", pointsize = 10)
+# plotfit.x.red.impala(x[x<=w],fitVU,nclass=20,nint=100);rug(x[x<=w])
+# dev.off()
 ```
 
 We now perform checks on the model, to verify the goodness of fit in the perpendicular dimension (Kolmogarov-Smirnov and Cramer-von Mises p-values are also reported):
@@ -456,7 +505,7 @@ The results of the 2D distance sampling are now compared to those from Conventio
 data %>% 
   mutate(Region.Label = "Study area",
          Area = surveyed_area) %>% 
-  rename(#Area = area,
+  dplyr::rename(#Area = area,
          Sample.Label = transect,
          Effort = transect_length,
          distance = perp_dist,
@@ -467,11 +516,27 @@ cds.hr <- ds(data=data_cds, key="hr", adjustment=NULL,
              convert_units=conversion.factor,
              dht_group = FALSE, # group size must be taken into account
              truncation = threshold)
-plot(cds.hr, main="Hazard rate model, Conventional Distance Sampling")
-# summary(cds.hr)
 ```
 
-FARE TABELLINA FINALE O PLOT CON PUNTI E BARRE DI ERRORE CON STIME OTTENUTE CON 1D, 2D, DSM
+The resulting CDS detection function is shown in the following figure:
+```{r}
+plot(cds.hr, main="Hazard rate model, Conventional Distance Sampling", xlab = "Distance (m)")
+# summary(cds.hr)
+
+# # paper fig for duiker
+# tiff(paste("figs/cds_plot_",params$species_name,".tiff",sep = ""), res=300,
+#      compression = "lzw", width = 14, height = 9.5, units = "cm", pointsize = 10)
+# plot(cds.hr, main="", xlab = "")
+# dev.off()
+
+# # paper fig for impala
+# tiff(paste("figs/cds_plot_",params$species_name,".tiff",sep = ""), res=300,
+#      compression = "lzw", width = 14, height = 9.5, units = "cm", pointsize = 10)
+# plot(cds.hr, main="", xlab = "Distance (m)")
+# dev.off()
+```
+
+The results are then compared to those obtained above with the 2D-DS approach:
 
 ```{r comparison-table}
 Estimate = c(cds.hr$dht$individuals$N$Estimate, abund_survey_individuals[[1]])
@@ -487,6 +552,7 @@ data.frame(Estimate = round(Estimate,3),
 row.names(comparison) <- c("CDS", "2D-DS")
 comparison
 ```
+
 ```{r comparison-plot}
 library(ggplot2)
 ggplot(comparison, aes(x=row.names(comparison), y=Estimate)) +
@@ -495,10 +561,24 @@ ggplot(comparison, aes(x=row.names(comparison), y=Estimate)) +
     xlab("") + ylab("Estimated N")
 ```
 
+```{r eval=FALSE, include=FALSE}
+# 519 km2 area della prediction grid
+CDS	27.759 CV	0.402	
+2D-DS	63.665	cv 0.687	surveyed area 105.657286
+
+63.665 : 105.66 = x : 519
+duiker 2d ds 63.665 * 519 / 105.66
+duiker cds 27.759 * 519 / 105.66
+
+impala 2d ds 975.027 * 519 / 266.161306
+impala cds 828.244 * 519 / 266.161306
+
+```
+
 
 # References
 
-Borchers DL, Cox MJ (2017) Distance sampling detection functions: 2D or not 2D? Biometrics 73(2):593-602. https://doi.org/10.1111/biom.12581    
-Elenga G, Bonenfant C, Péron G (2020) Distance sampling of duikers in the rainforest: Dealing with transect avoidance. PLOS ONE 15(10): e0240049. https://doi.org/10.1371/journal.pone.0240049
+Borchers DL, Cox MJ (2017) Distance sampling detection functions: 2D or not 2D? Biometrics 73(2):593-602. https://doi.org/10.1111/biom.12581.      
+Elenga G, Bonenfant C, Péron G (2020) Distance sampling of duikers in the rainforest: Dealing with transect avoidance. PLOS ONE 15(10): e0240049. https://doi.org/10.1371/journal.pone.0240049.  
 Fewster, R.M., S.T. Buckland, K.P. Burnham, D.L. Borchers, P.E. Jupp, J.L. Laake and L. Thomas. 2009. Estimating the encounter rate variance in distance sampling. Biometrics 65: 225-236.
 
