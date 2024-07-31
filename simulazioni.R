@@ -24,35 +24,31 @@ params$trunc_perp_dist_perc <- 5
 params$h.function <- "h.RE"
 params$pi.function <- "pi.sigmo"
 params$starting_values <-  c(0.25,0.25,-4,-1) # used for duiker
-# params$starting_values <-  c(0.25,0.25,-10,-6) # used for impala from sim 129
 params$sd <-  6 # used for duiker
-# params$sd <-  10 # used for impala from sim 129
-# params$sd <-  20 # used for impala from sim 139
-# params$sd <-  30 # used for impala from sim 160
 params$n_models <-  400
 params$n_hpars <- 2
 params$n_pipars <- 2
 
-# 2.1830041  0.6591414 -3.2161279 -5.6619513
-# params$starting_values <-  c(2.1830041,  0.6591414, -3.2161279, -5.6619513)
 
 ####---- Load and clean the dataset ----
-# data <- read.csv("data/SAMPLE.csv")
-# data <- read.csv("data/DUIKERSIMULA.csv")
-# data <- read.csv("data/impalasimula.csv")
-# data <- read.csv("data/duikersimula_20240707.csv")
+# usati questi due file:
 # data <- read.csv("data/duikersimula_9_7_2024.csv") # ok
-data <- read.csv("data/impalasimula_9_7_2024.csv")
+# data <- read.csv("data/simula_20240730/impalasimula_bw_0_9.csv") # ok usata questa
+
+# altri file che potrebbero tornare utili:
+# data <- read.csv("data/impalasimula_9_7_2024.csv")
+# data <- read.csv("data/simula_20240730/impalasimula_bw_1_2.csv")
+# data <- read.csv("data/simula_20240730/impalasimula_bw_1_4.csv")
+# data <- read.csv("data/simula_20240730/impalasimula_bw_1.csv")
+
 colnames(data) <- c("perp_dist", "forw_dist", "samplesize", "replicate", "id")
 data %>% 
   mutate(detected = 1,
          id_survey = paste(samplesize,replicate,sep="-")) -> data
 head(data)
 
-# data %>% 
-#   filter(replicate == 1) -> data
 
-#### Dealing with NA and non-detections
+#### Dealing with NA and non-detections (not necessary for sims but kept for consistency with the original code)
 data_clean_tot <- 
   data %>% 
   filter(detected != 0, # we only include actual observations in the dataset used to fit the detection function
@@ -62,17 +58,12 @@ data_clean_tot$forw_dist <- abs(data_clean_tot$forw_dist) # we make sure all dis
 
 ####---- Simulations: For loop ----
 
-# # provo a rifare tutto con questi valori
-# params$starting_values <-  c(0.25,0.25,-4,-1)
-# params$sd <-  18
-
-# i=21
 stats_df_groups <- vector("list",length(unique(data_clean_tot$id_survey)))
 fitVU <- vector("list",length(unique(data_clean_tot$id_survey)))
 best_mod <- vector("list",length(unique(data_clean_tot$id_survey)))
 cvs <- vector("list",length(unique(data_clean_tot$id_survey)))
 # for (i in 1:3) {
-for (i in 29:length(unique(data_clean_tot$id_survey))) {
+for (i in 169:length(unique(data_clean_tot$id_survey))) {
   print(i)
   skip_to_next <- FALSE
   data_clean <- filter(data_clean_tot, id_survey == unique(id_survey)[i])
@@ -185,28 +176,31 @@ for (i in 29:length(unique(data_clean_tot$id_survey))) {
            sample_size = data_clean$samplesize[1])
   
   # tryCatch(print(b), error = function(e) { skip_to_next <<- TRUE})
+  
+  # provo in extremis a togliere questo
   tryCatch(plotfit.x.red(x[x<=w],fitVU[[i]],nclass=20,nint=100),
-           # rug(x[x<=w]),
+           rug(x[x<=w]),
            error = function(e) { skip_to_next <<- TRUE})
+
+  if(skip_to_next) { next }
   
-  # if(skip_to_next) { next } 
-  if(skip_to_next) { fName = params$h.function
-  # GoF for perpendicular distances
-  GoFx(fitVU[[i]],plot=TRUE)$pvals
+  # if(skip_to_next) { fName = params$h.function
+  # # GoF for perpendicular distances
+  # GoFx(fitVU[[i]],plot=TRUE)$pvals
+  # 
+  # # # GoF for forward distances
+  # # fName = params$pi.function
+  # # GoFy_mod(fitVU[[i]],plot=TRUE)$pvals
+  # # # plotfit.smoothfy(fitVU,nclass=32);rug(x=y[x<=w])
+  # # # plotfit.y(y[x<=w & y<=ystart],x,fitVU,nclass=20);rug(x=y[x<=w])
+  # # plotfit.smoothfy(fitVU[[i]],xmax=w)
+  # 
+  # (LT2D::phatModels(modList = list(fitVU[[i]]), # same as fitVU
+  #                   n=length(na.omit(data_trunc$cluster_size))) %>%
+  #     mutate(id_survey = data_clean$id_survey[1],
+  #            sample_size = data_clean$samplesize[1]) -> stats_df_groups[[i]]) }
   
-  # # GoF for forward distances
-  # fName = params$pi.function
-  # GoFy_mod(fitVU[[i]],plot=TRUE)$pvals
-  # # plotfit.smoothfy(fitVU,nclass=32);rug(x=y[x<=w])
-  # # plotfit.y(y[x<=w & y<=ystart],x,fitVU,nclass=20);rug(x=y[x<=w])
-  # plotfit.smoothfy(fitVU[[i]],xmax=w)
-  
-  (LT2D::phatModels(modList = list(fitVU[[i]]), # same as fitVU
-                    n=length(na.omit(data_trunc$cluster_size))) %>%
-      mutate(id_survey = data_clean$id_survey[1],
-             sample_size = data_clean$samplesize[1]) -> stats_df_groups[[i]]) }
-  
-  rug(x[x<=w])
+  # rug(x[x<=w])
   # plotfit.x.red(x[x<=w],fitVU[[i]],nclass=20,nint=100);rug(x[x<=w])
 
   fName = params$h.function
@@ -227,40 +221,8 @@ for (i in 29:length(unique(data_clean_tot$id_survey))) {
   
 }
 
-# impala si è bloccato a 11, 12, 14, 27, 33, 38, 40, 104, 106, 107, 120, 124, 133, 141, 144, 155, 172, 177, 195, 197
-# duiker si è bloccato a 12, 15, 24, 47, 48, 56, 61, 76, 146, 171
 
-# con i vecchi parametri e tryCatch impala si è cmq bloccato a 5, 6, 7, 8, 11, 20
-
-# # vecchie prove impala
-# # impala si è bloccato a 2, 3, 4, 5, 6, 8, 11, 13, 14, 15, 17, 18, 19, 20, 24, 25, 28, 29, 30, 31, 35,
-# # 36, 37, 43, 44, 48, 49, 50, 51, 55, 56, 61, 63, 64, 67, 68, 69, 70, 71, 75, 76, 77, 81, 83, 85, 86, 88, 89,
-# # 91, 93, 95, 96, 97, 98, 100, 101, 103, 104, 105, 106, 107, 109, 111, 113, 115, 116, 117, 118, 119, 120, 121,
-# # 123, 124, 125, 126, 127, 128
-# params$starting_values <-  c(0.25,0.25,-10,-6)
-# params$sd <-  20 # used for impala from sim 139
-# # 135, 139
-# params$starting_values <-  c(0.25,0.25,-10,-6)
-# params$sd <-  30 # used for impala from sim 139
-# # 141, 143, 146, 153, 157
-# params$starting_values <-  c(0.25,0.25,-4,-1)
-# params$sd <-  20 # used for impala from sim 139
-# # 168, 199
-
-
-
-
-# Error in integrate(h, y[i], ymax, x = x[i], b = b, subdivisions = 1000L) :
-#   the integral is probably divergent
-# Error in phatInterval(fit = x, ...) : 
-#   fit ARG must include a hessian matrix
-
-####---- Results: Remove non-sense CVs (> 1) ----
-do.call("rbind",stats_df_groups) %>% 
-  filter(CV.phat <= 1) -> cvs_simula 
-  # mutate(id_survey = unique(data_clean_tot$id_survey),
-  #        sample_size = as.numeric(str_extract(id_survey, "[0-9]+")))-> cvs_simula
-do.call("rbind",stats_df_groups) -> cvs_simula
+# salvataggio dei risultati
 
 # save(fitVU, file="output/simula/duikersimula_9_7_2024_fitVU.RData", compress = F)
 # save(best_mod, file="output/simula/duikersimula_9_7_2024_bestmod.RData", compress = F)
@@ -268,19 +230,21 @@ do.call("rbind",stats_df_groups) -> cvs_simula
 # save(cvs_simula, file="output/simula/duikersimula_9_7_2024_cvs_simula.RData", compress = F)
 # save(stats_df_groups, file="output/simula/duikersimula_9_7_2024_statsdfgroups.RData", compress = F)
 
-save(fitVU, file="output/simula/impalasimula_9_7_2024_fitVU.RData", compress = F)
-save(best_mod, file="output/simula/impalasimula_9_7_2024_bestmod.RData", compress = F)
-save(cvs, file="output/simula/impalasimula_9_7_2024_cvs.RData", compress = F)
-save(cvs_simula, file="output/simula/impalasimula_9_7_2024_cvs_simula.RData", compress = F)
-save(stats_df_groups, file="output/simula/impalasimula_9_7_2024_statsdfgroups.RData", compress = F)
+# save(fitVU, file="output/simula/impalasimula_31_7_2024_fitVU.RData", compress = F)
+# save(best_mod, file="output/simula/impalasimula_31_7_2024_bestmod.RData", compress = F)
+# save(cvs, file="output/simula/impalasimula_31_7_2024_cvs.RData", compress = F)
+# save(cvs_simula, file="output/simula/impalasimula_31_7_2024_cvs_simula.RData", compress = F)
+# save(stats_df_groups, file="output/simula/impalasimula_31_7_2024_statsdfgroups.RData", compress = F)
 
-aa <- vector("list",length(fitVU))
-for (i in 1:length(fitVU)) {
-  aa[[i]] <- (fitVU[[i]]$par)
-}
-colMeans(do.call("rbind",aa))
+####---- Results:  ----
+load("output/simula/duikersimula_9_7_2024_cvs.RData") # dati di base dei cv
+# do.call("rbind",stats_df_groups) %>% 
+#   filter(CV.phat <= 1) -> cvs_simula # Remove non-sense CVs (> 1)
+#   # mutate(id_survey = unique(data_clean_tot$id_survey),
+#   #        sample_size = as.numeric(str_extract(id_survey, "[0-9]+")))-> cvs_simula
+# do.call("rbind",stats_df_groups) -> cvs_simula
+do.call("rbind",cvs) -> cvs_simula
 
-import_plex_sans()
 
 library(Rmisc)
 data_summary <- function(data, varname, groupnames){
@@ -314,21 +278,27 @@ cvs_simula_grouped$sample_size = as.factor(cvs_simula_grouped$sample_size)
 # import_plex_sans()
 # extrafont::font_import()
 
+
+species.name <- "Impala"
+species.name <- "Duiker"
+
+
 ## boxplot
 ggplot(cvs_simula, aes(x = as.factor(sample_size), y = CV.phat)) +
   geom_boxplot() +
   geom_hline(yintercept=0.2, linetype="dashed", color = "red") +
-  scale_x_discrete(expand=c(0,0)) +
+  scale_x_discrete(expand=c(-1.1,0)) +
   scale_y_continuous(expand=c(0,0), limits=c(-0.05, 1)) +
   xlab("Sample size") +
   ylab("CV") +
   # theme(axis.text.y=element_blank()) +
-  labs(
-    # title="IBM Plex Sans Test",
-    subtitle="Impala",
-    # caption="Source: hrbrthemes & IBM"
-  ) +
-  theme_ipsum_ps(axis_title_size = 15)
+  # labs(
+  #   # title="IBM Plex Sans Test",
+  #   subtitle=species.name,
+  #   # caption="Source: hrbrthemes & IBM"
+  # ) +
+  theme_ipsum_ps(axis_title_size = 10, axis = TRUE) +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())
 
 ## plot with sd error bars
 ggplot(cvs_simula_grouped, aes(x = sample_size, y = CV.phat)) +
@@ -336,24 +306,18 @@ ggplot(cvs_simula_grouped, aes(x = sample_size, y = CV.phat)) +
   geom_hline(yintercept=0.2, linetype="dashed", color = "red") +
   geom_errorbar(aes(ymin=CV.phat-sd, ymax=CV.phat+sd), width=.3,
                 position=position_dodge(0)) +
-  scale_x_discrete(expand=c(0,0)) +
+  scale_x_discrete(expand=c(-1.05,0)) +
   scale_y_continuous(expand=c(0,0), limits=c(-0.05, 0.5)) +
   xlab("Sample size") +
   ylab("CV") +
   # theme(axis.text.y=element_blank()) +
-  labs(
-    # title="IBM Plex Sans Test",
-    subtitle="Impala: Plot with SD error bars",
-    # caption="Source: hrbrthemes & IBM"
-  ) +
-  theme_ipsum_ps(axis_title_size = 15)
-  # scale_color_manual(values=c('#E69F00'))
-  # scale_color_manual(values=c('#999999','#E69F00'))
-  # scale_color_ipsum(scales::pal_hue()) +
-  # scale_fill_ipsum(scales::pal_hue())
-  # theme_ipsum(grid = "XY") +
-  # theme_pubr()
-  # geom_pointrange()
+  # labs(
+  #   # title="IBM Plex Sans Test",
+  #   subtitle=paste(species.name,": Plot with SD error bars",sep=""),
+  #   # caption="Source: hrbrthemes & IBM"
+  # ) +
+  theme_ipsum_ps(axis_title_size = 10, axis = TRUE) +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())
   
 ## plot with CI error bars
 ggplot(cvs_simula_grouped, aes(x = sample_size, y = CV.phat)) +
@@ -361,17 +325,18 @@ ggplot(cvs_simula_grouped, aes(x = sample_size, y = CV.phat)) +
   geom_hline(yintercept=0.2, linetype="dashed", color = "red") +
   geom_errorbar(aes(ymin=lcl, ymax=ucl), width=.3,
                 position=position_dodge(0)) +
-  scale_x_discrete(expand=c(0,0)) +
-  scale_y_continuous(expand=c(0,0), limits=c(-0.5, 0.6)) +
+  scale_x_discrete(expand=c(-1.05,0)) +
+  scale_y_continuous(expand=c(0,0), limits=c(-0.05, 0.5)) +
   xlab("Sample size") +
   ylab("CV") +
   # theme(axis.text.y=element_blank()) +
-  labs(
-    # title="IBM Plex Sans Test",
-    subtitle="Impala: Plot with 95% CI error bars",
-    # caption="Source: hrbrthemes & IBM"
-  ) +
-  theme_ipsum_ps(axis_title_size = 15)  
+  # labs(
+  #   # title="IBM Plex Sans Test",
+  #   subtitle=paste(species.name,": Plot with 95% CI error bars",sep="")
+  #   # caption="Source: hrbrthemes & IBM"
+  # ) +
+  theme_ipsum_ps(axis_title_size = 10, axis = TRUE) +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank()) 
 
 table(cvs_simula_clean$sample_size)
 

@@ -1,0 +1,16 @@
+0.9
+ m   modAIC    CV.phat id_survey sample_size
+1 393 4769.879 0.03790562     250-1         250
+
+1.2
+ m   modAIC    CV.phat id_survey sample_size
+1 280 4755.817 0.03357598     250-1         250
+
+1.4
+m   modAIC    CV.phat id_survey sample_size
+1 346 4748.983 0.05128379     250-1         250
+
+
+1
+m   modAIC   CV.phat id_survey sample_size
+1 33 4752.154 0.1027538     250-1         250
