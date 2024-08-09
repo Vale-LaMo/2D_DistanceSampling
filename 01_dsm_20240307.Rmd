@@ -2,10 +2,10 @@
 title: "Density surface modelling"
 params:
   seed_no: 16
-  species_name: "duiker"
-  segdata_file: "segdata_duiker.xlsx"
-  obsdata_file: "obsdata_duiker.xlsx"
-  preddata_file: "preddata_duiker_new.xlsx"
+  species_name: "impala"
+  segdata_file: "segdata_impala.xlsx"
+  obsdata_file: "obsdata_impala.xlsx"
+  preddata_file: "preddata_impala_new.xlsx"
   conversion_km_m: !expr 1/200
 output:
   html_notebook:
@@ -205,7 +205,7 @@ dat <- make.data_mod(response = "abundance.est", ddfobject = fitVU,
                      segdata, obsdata, group = FALSE,
                      convert.units = params$conversion_km_m,
                      availability = 1,
-                     segment.area = segdata$Effort*max(fitted.p.df$distance)*2,
+                     segment.area = segdata$Effort*max(fitted.p.df$distance),#*2,
                      family = tw())
 dat
 ```
@@ -282,18 +282,32 @@ pp.uncertainty <- mutate(pp, CV = prediction.CV, stdev = prediction.stdev)
 #   coord_equal()
 # print(pNhat)
 
+logo_path <- paste("logos/", params$species_name, "_logo.png",sep = "")
+logo <- readPNG(logo_path)
+if(params$species_name == "duiker") size_logo=2 else size_logo=2.5
+if(params$species_name == "duiker") tile_factor=1 else tile_factor=2
+
 pNhat <- ggplot(pp) +
   geom_tile(aes(x=x, y=y, fill=Nhat/(preddata$area[1]/1000000), 
-                width=1/params$conversion_km_m, 
-                height=1/params$conversion_km_m)) +
+                width=(1/params$conversion_km_m)*tile_factor, 
+                height=(1/params$conversion_km_m)*tile_factor)) +
   scale_fill_distiller(palette = "YlGn", direction=2) +
+  # scale_fill_distiller(palette = "YlGn", direction=2,
   #                      values = c(seq(0, 60, 60))) +
   # scale_fill_distiller(palette = "YlGn", direction=2, trans = "log10", 
   #                      name = "log10(Similarity)") +
-  labs(fill="Nhat") +
-  theme_minimal() +
-  coord_equal()
+  labs(fill=bquote(widehat(N)), x = "Longitude", y = "Latitude") +
+  ylim(c(-1570000,-1530000)) +
+  xlim(c(3450000,3540000)) +
+  theme_classic(base_size = 10) +
+  coord_equal() +
+  guides(x = "axis_truncated", y = "axis_truncated") +
+      annotation_custom(rasterGrob(logo,
+                                   width = unit(size_logo, "cm"),
+                                   height = unit(size_logo, "cm")),
+                        xmin=3500000, ymin=-1570000)
 print(pNhat)
+if(params$species_name == "duiker") pNhat_duiker <- pNhat else pNhat_impala <- pNhat
 
 # plot SD
 pSD <- ggplot(pp) +

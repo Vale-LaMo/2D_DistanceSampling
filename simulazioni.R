@@ -283,7 +283,7 @@ cvs_simula_grouped$sample_size = as.factor(cvs_simula_grouped$sample_size)
 # species.name <- "Impala"
 # species.name <- "Duiker"
 
-
+## per le figure del paper definitive si veda sotto e figures_for_paper.R
 ## boxplot
 ggplot(cvs_simula, aes(x = as.factor(sample_size), y = CV.phat)) +
   geom_boxplot() +
@@ -346,26 +346,97 @@ table(cvs_simula_clean$sample_size)
   smoothingSpline = smooth.spline(cvs_simula$sample_size, cvs_simula$CV.phat, spar=0.35)
   plot(cvs_simula$sample_size, cvs_simula$CV.phat)
   lines(smoothingSpline)
-
-# cvs_simula %>% 
-#   filter(sample_size != 25) %>%
-#   filter(sample_size != 75) %>% 
-#   filter(sample_size != 175) %>% 
-#   filter(sample_size <= 200) -> cvs_simula2
-# qplot(cvs_simula2$sample_size, cvs_simula2$CV.phat, geom='smooth', span =0.5) +
-#   xlab("Sample size") +
-#   ylab("CV") +
-#   # scale_x_discrete(expand=c(0,0), breaks = c(50,100,150,200)) +
-#   # scale_y_continuous(expand=c(0,0), limits=c(0, 0.2)) +
-#   theme_ipsum_ps(axis_title_size = 15, grid = "XY")
-
-
-
-# save(fitVU, file="output/simula/impala_fitVU.RData", compress = F)
-# save(best_mod, file="output/simula/impala_bestmod.RData", compress = F)
-# save(cvs, file="output/simula/impala_cvs.RData", compress = F)
-# save(stats_df_groups, file="output/simula/impala_statsdfgroups.RData", compress = F)
-
-# Error in integrate(h, y[i], ymax, x = x[i], b = b, subdivisions = 1000L) :
-#   the integral is probably divergent
+  
+  
+  ####---- Figura simulazioni  ----
+  # (non necessario far rigirare il codice sopra)
+  
+  library(Rmisc)
+  data_summary <- function(data, varname, groupnames){
+    # require(plyr)
+    summary_func <- function(x, col){
+      c(mean = mean(x[[col]], na.rm=TRUE),
+        sd = sd(x[[col]], na.rm=TRUE),
+        lcl = CI(x[[col]])[[3]],
+        ucl = CI(x[[col]])[[1]])
+    }
+    data_sum<-ddply(data, groupnames, .fun=summary_func,
+                    varname)
+    data_sum <- rename(data_sum, c("mean" = varname))
+    return(data_sum)
+  }
+  
+  # DUIKER
+  
+  load("output/simula/duikersimula_9_7_2024_cvs.RData") # dati di base dei cv
+  do.call("rbind",cvs) -> cvs_simula
+  
+  logo_path <- paste("logos/duiker_logo.png",sep = "")
+  logo <- readPNG(logo_path)
+  
+  library(plyr)
+  cvs_simula %>% 
+    filter(CV.phat < 0.9) -> cvs_simula_clean
+  cvs_simula_grouped <- data_summary(cvs_simula_clean, varname="CV.phat", 
+                                     groupnames=c("sample_size"))
+  # Convert dose to a factor variable
+  cvs_simula_grouped$sample_size = as.factor(cvs_simula_grouped$sample_size)
+  
+  
+  ggplot(cvs_simula, aes(x = as.factor(sample_size), y = CV.phat)) +
+    geom_boxplot() +
+    geom_hline(yintercept=0.2, linetype="dashed", color = "red") +
+    scale_x_discrete(expand=c(-1.1,0)) +
+    scale_y_continuous(expand=c(0,0), limits=c(-0.05, 1)) +
+    xlab("Sample size") +
+    ylab("CV") +
+    # theme(axis.text.y=element_blank()) +
+    # labs(
+    #   # title="IBM Plex Sans Test",
+    #   subtitle=species.name,
+    #   # caption="Source: hrbrthemes & IBM"
+    # ) +
+    theme_classic(base_size = 10) +
+    guides(x = "axis_truncated", y = "axis_truncated") +
+    annotation_custom(rasterGrob(logo, width = unit(2, "cm"),
+                                 height = unit(2, "cm")),
+                      xmin=5, ymin=0.75) -> p_simula_duiker
+  
+  
+  # IMPALA
+  
+  load("output/simula/impalasimula_31_7_2024_cvs.RData") # dati di base dei cv
+  do.call("rbind",cvs) -> cvs_simula
+  
+  logo_path <- paste("logos/impala_logo.png",sep = "")
+  logo <- readPNG(logo_path)
+  
+  library(plyr)
+  cvs_simula %>% 
+    filter(CV.phat < 0.9) -> cvs_simula_clean
+  cvs_simula_grouped <- data_summary(cvs_simula_clean, varname="CV.phat", 
+                                     groupnames=c("sample_size"))
+  # Convert dose to a factor variable
+  cvs_simula_grouped$sample_size = as.factor(cvs_simula_grouped$sample_size)
+  
+  
+  ggplot(cvs_simula, aes(x = as.factor(sample_size), y = CV.phat)) +
+    geom_boxplot() +
+    geom_hline(yintercept=0.2, linetype="dashed", color = "red") +
+    scale_x_discrete(expand=c(-1.1,0)) +
+    scale_y_continuous(expand=c(0,0), limits=c(-0.05, 0.5)) +
+    xlab("Sample size") +
+    ylab("CV") +
+    # theme(axis.text.y=element_blank()) +
+    # labs(
+    #   # title="IBM Plex Sans Test",
+    #   subtitle=species.name,
+    #   # caption="Source: hrbrthemes & IBM"
+    # ) +
+    theme_classic(base_size = 10) +
+    guides(x = "axis_truncated", y = "axis_truncated") +
+    annotation_custom(rasterGrob(logo, width = unit(2, "cm"),
+                                 height = unit(2, "cm")),
+                      xmin=5, ymin=0.35) -> p_simula_impala
+  
  
