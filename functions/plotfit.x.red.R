@@ -25,7 +25,7 @@ function(x,est,nclass=10,nint=100,
     ymax=max(f.xfit,p.xfit.std,adbn,f.x,p.x.std,adbnTRUE,hx$density,ymx) 
     ## Plot empirical distribution of sightings along x axis
     hx=hist(x,breaks=breaks,freq=FALSE,ylim=c(0,ymax),
-            main=title,xlab="perpendicular distance (x)",ylab="pdf", ...)
+            main=title,xlab="Perpendicular distance (x)",ylab="pdf", ...)
     ## Overlay predicted distribution of sightings along x axis, f(x)
     lines(gridx,f.xfit,col="red",lwd=4)
     # overlay fitted detection function p(x), scaled to have area=1
@@ -34,6 +34,7 @@ function(x,est,nclass=10,nint=100,
     lines(gridx,adbn,col="black",lwd=2)
     legend("topright",legend=c("f(x)","p(x)",expression(pi(x))),
            col=c("red","black","black"),lwd=c(2,2,2),lty=c(1,2,1))
+    
   }
   invisible(list(gridx=gridx,p.xpifit=p.xpifit,mufit=mufit,
                  f.xfit=f.xfit,p.xfit=p.xfit,ptot=ptot,p.xfit.std=p.xfit.std,adbn=adbn

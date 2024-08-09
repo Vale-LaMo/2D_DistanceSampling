@@ -46,6 +46,7 @@ source("functions/com_pifunctions.R")
 source("functions/com_likelihoodutilities.R")
 source("functions/GoFy_mod.R") # custom GoFy function, modified by VLM 2022-11-11
 source("functions/plotfit.x.red.R") # custom function, modified by VLM 2023-08-31, to have a red line instead of a grey one
+source("functions/plotfit.x.red.ggplot.R")
 ```
 
 **Analyses for `r params$species_name`**
@@ -141,27 +142,49 @@ par(opar)
 #      ylab = "Forward distance (m)")
 # dev.off()
 
-# figura in ggplot, non usata
-# ggplot(data_clean, aes(x = perp_dist, y = forw_dist)) +
-#   geom_point(shape = 21, size = 2) +
-#   scale_x_continuous(expand=c(0,0), limits=c(0, 100))+
-#   scale_y_continuous(expand=c(0,0), limits=c(0, 100)) +
-#   xlab("Perpedincular distance (m)") +
-#   ylab("Forward distance (m)") +
-#   # theme(axis.text.y=element_blank()) +
-#   labs(
-#     # title="IBM Plex Sans Test",
-#     # subtitle="This is a subtitle to see the how it looks in IBM Plex Sans",
-#     # caption="Source: hrbrthemes & IBM"
-#   ) +
-#   # theme_ipsum_ps(axis_title_size = 12) +
-#   theme_minimal() +
-#   theme(aspect.ratio=1) -> p_avoidance
-# if (params$species_name == "duiker") tag = "(a)" else tag = "b"
-# p_avoidance + plot_annotation(tag_levels = list(c(tag), '1')) +
-#   theme(plot.tag.position = c(0.02, 1.04))
-# ggsave(paste("figs/avoidance_plot_",params$species_name,".tiff",sep = ""))
-# # p_avoidance
+# # figura per paper aggiornata 2024-08-08, sia duiker sia impala
+logo_path <- paste("logos/", params$species_name, "_logo.png",sep = "")
+logo <- readPNG(logo_path)
+if(params$species_name == "duiker") {
+  p <- ggplot(data_clean, aes(x = perp_dist, y = forw_dist)) +
+    geom_point() +  # Add points for the scatter plot
+    xlim(0, max(c(data_clean$perp_dist, data_clean$forw_dist))) +
+    ylim(0, max(c(data_clean$perp_dist, data_clean$forw_dist))) +
+    labs(
+      x = "Perpendicular distance (m)",
+      y = "Forward distance (m)"
+    ) +
+    theme_classic(base_size = 10) +  # Use a classic theme for a clean look
+    coord_fixed() + # Keep aspect ratio equal
+    guides(x = "axis_truncated", y = "axis_truncated") +
+    annotation_custom(rasterGrob(logo, width = unit(2, "cm"), height = unit(2, "cm")), xmin=65, ymin=70)
+  # Print the plot
+  # print(p)
+  p_avoidance_duiker <- p
+  # saveRDS(p, file = paste("output/p_avoidance_",params$species_name,".rds",sep=""))
+}
+
+if(params$species_name == "impala") {
+  p <- ggplot(data_clean, aes(x = perp_dist, y = forw_dist)) +
+    geom_point() +  # Add points for the scatter plot
+    xlim(0, 500) +
+    ylim(0, 500) +
+    labs(
+      x = "Perpendicular distance (m)",
+      y = "Forward distance (m)"
+    ) +
+    theme_classic(base_size = 10) +  # Use a classic theme for a clean look
+    coord_fixed() + # Keep aspect ratio equal
+    guides(x = "axis_truncated", y = "axis_truncated") +
+    annotation_custom(rasterGrob(logo, width = unit(2.5, "cm"),
+                                 height = unit(2.5, "cm")),
+                      xmin=300, ymin=300)
+  # Print the plot
+  # print(p)
+  p_avoidance_impala <- p
+  # saveRDS(p, file = paste("output/p_avoidance_",params$species_name,".rds",sep=""))
+}
+
 ```
 
 We now select the truncation distances. For this purpose, we produce histograms and boxplots to identify outliers:
@@ -327,16 +350,27 @@ save(fitVU, file = paste("output/fitVU_", params$species_name, ".RData", sep = "
 # the original plotfit.x function has been modified to customize the colors
 plotfit.x.red(x[x<=w],fitVU,nclass=20,nint=100);rug(x[x<=w])
 
-# # # paper fig for duiker
-# tiff(paste("figs/detection_plot_",params$species_name,".tiff",sep = ""), res=300,
-#      compression = "lzw", width = 14, height = 9.5, units = "cm", pointsize = 10)
-# plotfit.x.red(x[x<=w],fitVU,nclass=20,nint=100);rug(x[x<=w])
-# dev.off()
+# # # # paper fig for duiker
+# source("functions/plotfit.x.red.ggplot.R")
+if(params$species_name == "duiker")  {
+  plotfit.x.red.ggplot(x[x<=w],fitVU,nclass=20,nint=100,
+          ymx=0.08,xaxislabel="",
+          xminlogo = 30, yminlogo = 0.05) -> p_detection_duiker
+}
+# saveRDS(detection_plot_duiker, file = "output/detection_plot_duiker.rds")
+
+# 30 0.05
 
 # # paper fig for impala
-# source("functions/plotfit.x.red.impala.R")
-# tiff(paste("figs/detection_plot_",params$species_name,".tiff",sep = ""), res=300,
-#      compression = "lzw", width = 14, height = 9.5, units = "cm", pointsize = 10)
+if(params$species_name == "impala")  {
+  plotfit.x.red.ggplot(x[x<=w],fitVU,nclass=20,nint=100,
+                       species = "impala",
+                       ymx=0.015,
+                       xaxislabel="Perpendicular distance (x)",
+                       showlegend = FALSE,
+                       xminlogo = 75, yminlogo = 0.01) -> p_detection_impala
+}
+
 # plotfit.x.red.impala(x[x<=w],fitVU,nclass=20,nint=100);rug(x[x<=w])
 # dev.off()
 ```
@@ -520,8 +554,14 @@ cds.hr <- ds(data=data_cds, key="hr", adjustment=NULL,
 
 The resulting CDS detection function is shown in the following figure:
 ```{r}
-plot(cds.hr, main="Hazard rate model, Conventional Distance Sampling", xlab = "Distance (m)")
+plot(cds.hr,main="Hazard rate model, Conventional Distance Sampling", xlab = "Distance (m)")
 # summary(cds.hr)
+
+# # paper fig for duiker
+# tiff(paste("figs/cds_plot_",params$species_name,".tiff",sep = ""), res=300,
+#      compression = "lzw", width = 14, height = 9.5, units = "cm", pointsize = 10)
+# plot(cds.hr, main="", xlab = "")
+# dev.off()
 
 # # paper fig for duiker
 # tiff(paste("figs/cds_plot_",params$species_name,".tiff",sep = ""), res=300,
@@ -534,7 +574,54 @@ plot(cds.hr, main="Hazard rate model, Conventional Distance Sampling", xlab = "D
 #      compression = "lzw", width = 14, height = 9.5, units = "cm", pointsize = 10)
 # plot(cds.hr, main="", xlab = "Distance (m)")
 # dev.off()
+
+## figure aggiornate 2024-08-08
+logo_path <- paste("logos/", params$species_name, "_logo.png",sep = "")
+logo <- readPNG(logo_path)
+
+if(params$species_name == "duiker") {
+  nc <- 5
+  breaks <- seq(0,cds.hr$ddf$meta.data$width,cds.hr$ddf$meta.data$width/nc)
+  source("functions/plot.ds.ggplot.R")
+  ggplot(data = cds_plot_data[[1]], aes(x=mids, y=density)) + 
+    geom_bar(stat="identity", group=1, fill="grey", col="black", width = width/nc) +
+    geom_line(data=cds_plot_data[[2]],
+              aes(x = observed_distances, y = fitted_values), color = "black", size = 1) +
+    theme_classic(base_size = 10) +
+    ylim(c(0,2.5)) +
+    labs(title = "", 
+             x = "", 
+             y = "Detection probability") +
+    guides(x = "axis_truncated", y = "axis_truncated") +
+    annotation_custom(rasterGrob(logo, width = unit(2, "cm"), height = unit(2, "cm")), xmin=40, ymin=1.5) -> p
+  # Print the plot
+  # print(p)
+  p_cds_duiker <- p
+}
+# print(p_cds_duiker)
+
+if(params$species_name == "impala") {
+  nc <- 8
+  breaks <- seq(0,cds.hr$ddf$meta.data$width,cds.hr$ddf$meta.data$width/nc)
+  source("functions/plot.ds.ggplot.R")
+  ggplot(data = cds_plot_data[[1]], aes(x=mids, y=density)) + 
+    geom_bar(stat="identity", group=1, fill="grey", col="black", width = width/nc) +
+    geom_line(data=cds_plot_data[[2]],
+              aes(x = observed_distances, y = fitted_values), color = "black", size = 1) +
+    theme_classic() +
+    ylim(c(0,1.5)) +
+    labs(title = "", 
+             x = "Perpendicular distance (m)", 
+             y = "Detection probability") +
+    guides(x = "axis_truncated", y = "axis_truncated") +
+    annotation_custom(rasterGrob(logo, width = unit(2.5, "cm"), height = unit(2.5, "cm")), xmin=100, ymin=1) -> p
+  # Print the plot
+  # print(p)
+  p_cds_impala <- p
+}
+
 ```
+
 
 The results are then compared to those obtained above with the 2D-DS approach:
 

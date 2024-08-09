@@ -238,6 +238,7 @@ for (i in 169:length(unique(data_clean_tot$id_survey))) {
 
 ####---- Results:  ----
 load("output/simula/duikersimula_9_7_2024_cvs.RData") # dati di base dei cv
+load("output/simula/impalasimula_31_7_2024_cvs.RData")
 # do.call("rbind",stats_df_groups) %>% 
 #   filter(CV.phat <= 1) -> cvs_simula # Remove non-sense CVs (> 1)
 #   # mutate(id_survey = unique(data_clean_tot$id_survey),
@@ -279,8 +280,8 @@ cvs_simula_grouped$sample_size = as.factor(cvs_simula_grouped$sample_size)
 # extrafont::font_import()
 
 
-species.name <- "Impala"
-species.name <- "Duiker"
+# species.name <- "Impala"
+# species.name <- "Duiker"
 
 
 ## boxplot
@@ -288,7 +289,7 @@ ggplot(cvs_simula, aes(x = as.factor(sample_size), y = CV.phat)) +
   geom_boxplot() +
   geom_hline(yintercept=0.2, linetype="dashed", color = "red") +
   scale_x_discrete(expand=c(-1.1,0)) +
-  scale_y_continuous(expand=c(0,0), limits=c(-0.05, 1)) +
+  scale_y_continuous(expand=c(0,0), limits=c(-0.05, 0.5)) +
   xlab("Sample size") +
   ylab("CV") +
   # theme(axis.text.y=element_blank()) +
