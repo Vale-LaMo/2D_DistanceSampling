@@ -10,6 +10,10 @@ library(LT2D)
 library(Distance)
 library(hrbrthemes)
 library(ggpubr)
+library(Rmisc)
+library(png)
+library(grid)
+library(ggh4x)
 
 ####---- Load 2D distance functions ----
 source("functions/com_hfunctions.R")
@@ -351,7 +355,6 @@ table(cvs_simula_clean$sample_size)
   ####---- Figura simulazioni  ----
   # (non necessario far rigirare il codice sopra)
   
-  library(Rmisc)
   data_summary <- function(data, varname, groupnames){
     # require(plyr)
     summary_func <- function(x, col){
@@ -388,7 +391,7 @@ table(cvs_simula_clean$sample_size)
     geom_hline(yintercept=0.2, linetype="dashed", color = "red") +
     scale_x_discrete(expand=c(-1.1,0)) +
     scale_y_continuous(expand=c(0,0), limits=c(-0.05, 1)) +
-    xlab("Sample size") +
+    xlab("") +
     ylab("CV") +
     # theme(axis.text.y=element_blank()) +
     # labs(

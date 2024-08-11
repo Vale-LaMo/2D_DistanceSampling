@@ -47,7 +47,7 @@ dev.off()
 
 ####---- Figura mappa DSM  ----
 # per creare la seguente figura, sono stati usati file creati con
-# 02_dsm_[ultimaversione].R (far rigirare il file)
+# 02_dsm_[ultimaversione].R (andare direttamente all'ultimo chunk)
 tiff(paste("figs/dsm_plot.tiff",sep = ""),
      height = 14, width = 14, units = "cm", res = 300, compression = "lzw",
      pointsize = 8)

@@ -329,6 +329,69 @@ write.csv(pp,paste("output/DSMresults_", params$species_name,
 # sum(pp.uncertainty$Nhat)
 ```
 
+```{r figures_for_paper, echo=FALSE, eval=FALSE}
+
+####---- Load packages ----
+library(tidyverse)
+library(readxl)
+library(mvtnorm)
+# if(!"devtools" %in% rownames(installed.packages())) 
+#   {install.packages("devtools")}
+# devtools::install_github('david-borchers/LT2D')
+library(LT2D)
+library(Distance)
+library(hrbrthemes)
+library(ggpubr)
+library(Rmisc)
+library(png)
+library(grid)
+library(ggh4x)
+
+## ---- load data for maps ----
+read.csv(paste("output/DSMresults_", params$species_name,
+                   ".csv", sep = "")) -> pp
+#### Load dataset
+preddata <- read_excel(paste("data/", params$preddata_file, sep = ""),
+                      col_types = rep("numeric", 4))
+preddata$area <- preddata$area
+
+logo_path <- paste("logos/", params$species_name, "_logo.png",sep = "")
+logo <- readPNG(logo_path)
+if(params$species_name == "duiker") size_logo=2 else size_logo=2.5
+if(params$species_name == "duiker") tile_factor=1 else tile_factor=2
+
+pNhat <- ggplot(pp) +
+  geom_tile(aes(x=x, y=y, fill=Nhat/(preddata$area[1]/1000000), 
+                width=(1/params$conversion_km_m)*tile_factor, 
+                height=(1/params$conversion_km_m)*tile_factor)) +
+  scale_fill_distiller(palette = "YlGn", direction=2) +
+  # scale_fill_distiller(palette = "YlGn", direction=2,
+  #                      values = c(seq(0, 60, 60))) +
+  # scale_fill_distiller(palette = "YlGn", direction=2, trans = "log10", 
+  #                      name = "log10(Similarity)") +
+  ylim(c(-1570000,-1530000)) +
+  xlim(c(3450000,3540000)) +
+  theme_classic(base_size = 10) +
+  coord_equal() +
+  guides(x = "axis_truncated", y = "axis_truncated") +
+      annotation_custom(rasterGrob(logo,
+                                   width = unit(size_logo, "cm"),
+                                   height = unit(size_logo, "cm")),
+                        xmin=3500000, ymin=-1570000) +
+  if(params$species_name == "duiker") {
+    labs(fill=bquote(widehat(N)), x = "", y = "Latitude") 
+  } else {
+    labs(fill=bquote(widehat(N)), x = "Longitude", y = "Latitude")
+  }
+  
+print(pNhat)
+if(params$species_name == "duiker") pNhat_duiker <- pNhat else pNhat_impala <- pNhat
+
+```
+
+
+
+
 # References
 
 Hedley SL, Buckland ST. Spatial models for line transect sampling. Journal of Agricultural, Biological, and Environmental Statistics. 2004;9(2):181--199.\
