@@ -1,0 +1,27 @@
+{
+    "id": "B97FEDDE",
+    "path": "C:/Users/valen/git/2D_DistanceSampling/01_dsm.Rmd",
+    "project_path": "01_dsm.Rmd",
+    "type": "r_markdown",
+    "hash": "2988440849",
+    "contents": "",
+    "dirty": false,
+    "created": 1723453339531.0,
+    "source_on_save": false,
+    "relative_order": 2,
+    "properties": {
+        "chunk_output_type": "inline",
+        "source_window_id": "",
+        "Source": "Source",
+        "cursorPosition": "249,119",
+        "scrollLine": "246"
+    },
+    "folds": "",
+    "lastKnownWriteTime": 1723455725,
+    "encoding": "UTF-8",
+    "collab_server": "",
+    "source_window": "",
+    "last_content_update": 1723455725340,
+    "read_only": false,
+    "read_only_alternatives": []
+}

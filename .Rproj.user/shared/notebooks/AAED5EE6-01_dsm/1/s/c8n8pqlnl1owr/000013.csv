@@ -1,0 +1,7 @@
+"0","dat <- make.data_mod(response = ""abundance.est"", ddfobject = fitVU,"
+"0","                     segdata, obsdata, group = FALSE,"
+"0","                     convert.units = params$conversion_km_m,"
+"0","                     availability = 1,"
+"0","                     segment.area = segdata$Effort*max(fitted.p.df$distance)*2,"
+"0","                     family = tw())"
+"0","dat"

@@ -1,0 +1,67 @@
+"0","#### Load packages"
+"0","library(tidyverse)"
+"1","── [1mAttaching core tidyverse packages[22m ─────────────── tidyverse 2.0.0 ──
+[32m✔[39m [34mdplyr    [39m 1.1.4     [32m✔[39m [34mreadr    [39m 2.1.5
+[32m✔[39m [34mforcats  [39m 1.0.0     [32m✔[39m [34mstringr  [39m 1.5.1
+[32m✔[39m [34mggplot2  [39m 3.5.1     [32m✔[39m [34mtibble   [39m 3.2.1
+[32m✔[39m [34mlubridate[39m 1.9.3     [32m✔[39m [34mtidyr    [39m 1.3.1
+[32m✔[39m [34mpurrr    [39m 1.0.2     
+"
+"1","── [1mConflicts[22m ───────────────────────────────── tidyverse_conflicts() ──
+[31m✖[39m [34mdplyr[39m::[32mfilter()[39m masks [34mstats[39m::filter()
+[31m✖[39m [34mdplyr[39m::[32mlag()[39m    masks [34mstats[39m::lag()
+[36mℹ[39m Use the ]8;;http://conflicted.r-lib.org/conflicted package]8;; to force all conflicts to become errors
+"
+"0","library(readxl)"
+"0","library(mvtnorm)"
+"0","# if(!""devtools"" %in% rownames(installed.packages())) "
+"0","#   {install.packages(""devtools"")}"
+"0","# devtools::install_github('david-borchers/LT2D')"
+"0","library(LT2D)"
+"2","Caricamento del pacchetto richiesto: MASS
+"
+"2","
+Caricamento pacchetto: ‘MASS’
+
+"
+"2","Il seguente oggetto è mascherato da ‘package:dplyr’:
+
+    select
+
+"
+"2","Caricamento del pacchetto richiesto: goftest
+"
+"2","Caricamento del pacchetto richiesto: optimx
+"
+"0","library(Distance)"
+"2","Caricamento del pacchetto richiesto: mrds
+"
+"2","This is mrds 2.3.0
+Built: R 4.4.0; ; 2024-05-14 03:06:52 UTC; windows
+
+**Change to default variance estimator for point transects. The default encounter rate variance estimator for point transects is now 'P2' (changed from 'P3'). See 'Uncertainty' section of ?dht for more information.**
+
+MCDS.exe not detected, single observer analyses will only be run using optimiser in mrds R library. See ?MCDS for details.
+"
+"2","
+Caricamento pacchetto: ‘Distance’
+
+"
+"2","Il seguente oggetto è mascherato da ‘package:mrds’:
+
+    create.bins
+
+"
+"0","library(patchwork)"
+"2","Avvertimento:"
+"2"," il pacchetto ‘patchwork’ è stato creato con R versione 4.4.1
+"
+"2","
+Caricamento pacchetto: ‘patchwork’
+
+"
+"2","Il seguente oggetto è mascherato da ‘package:MASS’:
+
+    area
+
+"

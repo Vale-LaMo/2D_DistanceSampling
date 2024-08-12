@@ -1,0 +1,8 @@
+"0","#### Dealing with NA and non-detections"
+"0","data_clean <- "
+"0","  data %>% "
+"0","  filter(detected != 0, # we only include actual observations in the dataset used to fit the detection function"
+"0","         perp_dist != ""NA"", # we remove lines with NA distances"
+"0","         forw_dist != ""NA"")"
+"0","data_clean$forw_dist <- abs(data_clean$forw_dist) # we make sure all distances are positive (see Discussion for details)"
+"0","write.csv(data_clean, paste(""output/data_clean_"",params$species_name,"".csv"", sep=""""))"

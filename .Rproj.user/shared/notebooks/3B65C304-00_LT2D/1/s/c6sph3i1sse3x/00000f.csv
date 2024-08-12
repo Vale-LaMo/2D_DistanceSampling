@@ -1,0 +1,1 @@
+"0","save(data_trunc, file = paste(""output/data_trunc_"", params$species_name,"".RData"", sep = """"), compress = FALSE)"

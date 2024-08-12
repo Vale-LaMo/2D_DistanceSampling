@@ -1,0 +1,2 @@
+"0","(LT2D::phatModels(modList = list(fitVU), # same as fitVU"
+"0","                 n=length(na.omit(data_trunc$cluster_size))) -> stats_df_groups)"

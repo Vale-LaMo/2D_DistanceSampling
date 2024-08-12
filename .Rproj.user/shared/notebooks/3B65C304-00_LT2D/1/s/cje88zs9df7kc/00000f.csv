@@ -1,0 +1,4 @@
+"0","# tryCatch.W.E(plotfit.x.red(x[x<=w],fitVU,nclass=20,nint=100));rug(x[x<=w])"
+"0","# see https://github.com/david-borchers/LT2D/blob/master/inst/FitsForPaper.r"
+"0","# the original plotfit.x function has been modified to customize the colors"
+"0","plotfit.x.red(x[x<=w],fitVU,nclass=20,nint=100);rug(x[x<=w])"

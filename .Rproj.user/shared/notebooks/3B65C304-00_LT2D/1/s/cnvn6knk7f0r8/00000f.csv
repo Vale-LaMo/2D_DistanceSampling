@@ -1,0 +1,2 @@
+"0","par(mfrow = c(1,2))"
+"0","hist(data_clean$perp_dist, main = """", xlab = ""Perpendicular distance (m)"")"

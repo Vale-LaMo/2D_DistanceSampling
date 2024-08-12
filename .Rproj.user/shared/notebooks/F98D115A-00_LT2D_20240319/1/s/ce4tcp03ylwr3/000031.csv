@@ -1,0 +1,3 @@
+"0","# plotfit.smoothfy(fitVU,nclass=32);rug(x=y[x<=w])"
+"0","# plotfit.y(y[x<=w & y<=ystart],x,fitVU,nclass=20);rug(x=y[x<=w])"
+"0","plotfit.smoothfy(fitVU,xmax=199)"

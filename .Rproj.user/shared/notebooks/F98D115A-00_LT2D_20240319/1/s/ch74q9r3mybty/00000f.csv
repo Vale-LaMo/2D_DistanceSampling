@@ -1,0 +1,17 @@
+"0","#### Load dataset"
+"0","data <- read_excel(paste(""data/"",params$input_file,sep=""""), #sheet=""template_dataset"","
+"0","                   col_types = c(rep(""numeric"", 8),"
+"0","                                 ""date"","
+"0","                                 ""text"", ""text""))"
+"2","Avvertimento:"
+"2"," Expecting numeric in G39 / R39C7: got 'NA'
+"
+"2","Avvertimento:"
+"2"," Expecting numeric in G48 / R48C7: got 'NA'
+"
+"2","Avvertimento:"
+"2"," Expecting numeric in G49 / R49C7: got 'NA'
+"
+"2","Avvertimento:"
+"2"," Expecting numeric in G57 / R57C7: got 'NA'
+"

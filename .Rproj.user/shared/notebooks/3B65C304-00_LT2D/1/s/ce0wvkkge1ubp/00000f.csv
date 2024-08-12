@@ -1,0 +1,5 @@
+"0","library(ggplot2)"
+"0","ggplot(comparison, aes(x=row.names(comparison), y=Estimate)) +"
+"0","    geom_bar(position=position_dodge(.9), colour=""black"", stat=""identity"", fill = ""white"") +"
+"0","    geom_errorbar(position=position_dodge(.9), width=.25, aes(ymin=Lower, ymax=Upper)) +"
+"0","    xlab("""") + ylab(""Estimated N"")"

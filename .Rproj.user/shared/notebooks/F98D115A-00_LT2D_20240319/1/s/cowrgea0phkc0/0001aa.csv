@@ -1,0 +1,8 @@
+"0",""
+"0","# # # # paper fig for duiker"
+"0","# source(""functions/plotfit.x.red.ggplot.R"")"
+"0","if(params$species_name == ""duiker"")  {"
+"0","  plotfit.x.red.ggplot(x[x<=w],fitVU,nclass=20,nint=100,"
+"0","          ymx=0.08,xaxislabel="""","
+"0","          xminlogo = 30, yminlogo = 0.05) -> p_detection_duiker"
+"0","}"

@@ -1,0 +1,6 @@
+"0","opar <- par(pty=""s"")"
+"0","plot(data_clean$perp_dist, data_clean$forw_dist,"
+"0","     xlim=c(0,max(c(data_clean$perp_dist,data_clean$forw_dist))),"
+"0","     ylim=c(0,max(c(data_clean$perp_dist,data_clean$forw_dist))),"
+"0","     xlab = ""Perpedincular distance (m)"","
+"0","     ylab = ""Forward distance (m)"")"

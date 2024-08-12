@@ -1,0 +1,14 @@
+"0","#### Load dataset"
+"0","segdata <- read_excel(paste(""data/"",params$segdata_file,sep=""""),"
+"0","                      # orignal file name: impala_segmenti_vlm_NEW.xlsx/imapla_segementi_vlm_NEW.xlsx "
+"0","                      #""data/impala_segmenti_vlm.xlsx"","
+"0","                      #sheet=""template_dataset"","
+"0","                      col_types = c(rep(""text"", 2),"
+"0","                                    rep(""numeric"", 3)))"
+"2","Avvertimento:"
+"2"," Coercing text to numeric in C1109 / R1109C3: '3461809.818'
+"
+"2","Avvertimento:"
+"2"," Coercing text to numeric in D1109 / R1109C4: '-1548902.792'
+"
+"0","head(segdata)"
