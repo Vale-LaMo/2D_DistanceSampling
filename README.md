@@ -8,7 +8,9 @@ As an example, we apply the code to estimate the density of two species with dif
 
 ## Density Surface Modelling
 
-*(work in progress)*
+We follow up on the distance sampling analyses in two dimensions, and we use the corrected detection function, taking into account the behavioral response of the animals, to fit a density surface model (DSM, Hedley & Buckland 2004, Miller et al. 2013) to the data. Indeed, DSMs follow a two-stage approach: after accounting for detectability via distance sampling methods, they then model distribution via a generalized additive model.
+While 2D distance sampling accounts for behavioral response, it does not overcome the problem of non-random transect placement, which is common to most field surveys, especially in rugged terrain. The DSM approach allows to correct for non-random transect placement, modelling the abundance (or density) of animals as a function of spatially explicit covariates, while also adjusting by the global detection probability. The expected abundance is related to the spatial covariates using a General Additive Model GAMs (Hastie and Tibshirani 1990). Possible predictors tipically include UTM coordinates, habitat, distance from water bodies, ecc.
+The model is then used to produce a prediction grid of animal abundance within the study area. 
 
 
 ## Instructions
