@@ -1,0 +1,4 @@
+"0","#### Load dataset"
+"0","preddata <- read_excel(paste(""data/"", params$preddata_file, sep = """"),"
+"0","                      col_types = rep(""numeric"", 4))"
+"0","head(preddata)"

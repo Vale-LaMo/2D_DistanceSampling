@@ -1,0 +1,9 @@
+"0","conversion.factor <- convert_units(""meter"", ""kilometer"", ""Square kilometer"")"
+"0","cds.hr <- ds(data=data_cds, key=""hr"", adjustment=NULL,"
+"0","             convert_units=conversion.factor,"
+"0","             dht_group = FALSE, # group size must be taken into account"
+"0","             truncation = threshold)"
+"2","Fitting hazard-rate key function
+"
+"2","AIC= 222.182
+"

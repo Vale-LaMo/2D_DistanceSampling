@@ -1,0 +1,4 @@
+"0","no_groups*mean(data_clustersize$cluster_size) -> abund_survey_individuals # estimated abundance, individuals"
+"0","data.frame(abund_survey_individuals[1],abund_survey_individuals/surveyed_area) -> df"
+"0","names(df) <- c(""no_individuals"",""dens_individuals_km2"")"
+"0","df"

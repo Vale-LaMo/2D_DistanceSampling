@@ -1,0 +1,353 @@
+---
+title: "2D distance sampling"
+params:
+  seed_no: 16
+  species_name: "duiker"
+  input_file: "duiker_vlm.xlsx"
+  trunc_perp_dist_perc: 5
+  trunc_forw_dist_m: 200
+  h.function: h.RE
+  pi.function: pi.sigmo
+  n_pars: 2
+output:
+  html_notebook: 
+    toc: yes
+    toc_float: true
+    code_folding: hide
+    theme: cosmo
+  html_document:
+    df_print: paged
+---
+
+<!-- # these functions work: h.RE, h.IP, h.SS, h.okamura -->
+<!-- # functions tested and working with h.RE: pi.sigmo, pi.CHN, pi.TN -->
+
+```{r packages, message=FALSE}
+#### Load packages
+library(tidyverse)
+library(readxl)
+library(mvtnorm)
+# if(!"devtools" %in% rownames(installed.packages())) 
+#   {install.packages("devtools")}
+# devtools::install_github('david-borchers/LT2D')
+library(LT2D)
+```
+
+```{r functions}
+#### Load 2D distance functions
+source("functions/com_hfunctions.R")
+source("functions/com_pifunctions.R")
+source("functions/com_likelihoodutilities.R")
+source("functions/GoFy_vlm.R") # custom GoFy function, modified by VLM 2022-11-11
+source("functions/plotfit.x.red.R") # custom function, modified by VLM 2023-08-31, to have a red line instead of a grey one
+```
+
+In distance sampling surveys, the animals might avoid both the transects in the absence of observers, and the observers themselves.
+To correct for the effect of the behavioral responses of the animals to either the transects or the observers, we can estimate density and abundance using line transect survey data with both the forward and perpendicular distances to the observers (2D distance sampling - R LT2D package, Borchers and Cox 2017), not just the perpendicular distance. This analysis approach was also applied and recommended by Elenga et al. (2020).
+
+Here, we rely on the functions from LT2D package (https://github.com/david-borchers/LT2D), as partly revised and applied in Elenga et al. (2020) (https://github.com/cbonenfant/duikers-abundance). With respect to the latter, we made additional minor changes to the code. All the code and functions used are available on https://github.com/Vale-LaMo/2D_DistanceSampling
+
+**To perform the analyses, initial parameters (species name, input file, percentage used for perpendicular distance data truncation, forward truncation distance in meters) are set at the beginning of this notebook (they can be customized manually, or via "Knit with parameters" in the Knit menu).**
+For the parameters `trunc_perp_dist_perc` and `trunc_forw_dist_m`, we recommend setting them respectively at 5, and at value >= than the largest forward distance. Then you can run the analyses and stop at the *Data cleaning and truncation* section to check the plots and eventually change these initial values.
+
+**Please also note that we assume that the folder in which this .Rmd file is stored includes the subfolders named *data* and *output*. The first one should contain the input data, while the second one must be created as an empty folder - output of the DS analyses will be saved there for (optional) subsequent analyses. The subfolder *functions* is also essential since it contains the customized functions used for the analyses. The whole structure can however be recreated effortless by forking and then cloning the GitHub repository on your local machine.** (see the README for detailed instructions)
+
+# Detection function fitting
+
+## Data import
+
+First of all, we need to import the data. The dataset (Excel file) should include the following columns (order matters):   
+
+- `area`: surface of the study area, in km2
+- `transect`: transect label (it could be a number or a letter)
+- `transect_length`: length of the transect, in km
+- `detected`: a field whose value is 1 in case of detection of a group of animals, 0 otherwise
+- `object`: a progressive number to identify each record (*i.e.*, 1,2,3,4,...)
+- `perp_dist`: perpendicular distance to the observer (only if the group has been detected)
+- `forw_dist`: forward distance to the observer (only if the group has been detected)
+- `cluster_size`: number of animals in the group (optional, only if the group has been detected)
+- `obs_time`: date and time stamp (optional)
+- `X_observer`: x-coord of the observer (optional)
+- `Y_observer`: y-coord of the observer (optional)
+
+All optional fields and the distance columns can have empty cells (or *NA*) in the Excel file. On the contrary, *NA*s are not admitted in the fields: `area`, `transect`, `transect_length`, `detected`, `object` (i.e., if the above order is respected, *NAs* are not admitted in the first 5 columns but can be present in the other ones). Values in the `forw_dist` column can also be negative.    
+In this file, we include all transects, even those for which there were no detections (and in this case, the `detected` column will be 0).
+
+*Please note that when reading the file, we specify the column types, that is why the order is important. Make sure to maintain the recommended order of the columns to avoid errors in the procedure; additional columns could of course be added, or the order changed, but then you will have to modify the `col_types` argument accordingly*
+
+```{r data-loading}
+#### Load dataset
+data <- read_excel(paste("data/",params$input_file,sep=""), #sheet="template_dataset",
+                   col_types = c(rep("numeric", 8),
+                                 "date",
+                                 "text", "text"))
+```
+*The previous messages simply warn us on the presence of some NAs in the columns with numeric data. We will deal with them later but please go back and check your data if you did not expect this to happen.*
+
+The data should look as follows:
+```{r data-preview}
+# data$transect_length <- data$transect_length*1000
+# data$area <- data$area*1000000
+head(data)
+```
+
+## Data cleaning and truncation
+
+Second, we clean the data: we remove the lines of the transects without any observation (`detected = 0`) and we also exclude records for which distances are missing.
+
+```{r data-cleaning}
+#### Dealing with NA and non-detections
+data_clean <- 
+  data %>% 
+  filter(detected != 0, # we only include actual observations in the dataset used to fit the detection function
+         perp_dist != "NA", # we remove lines with NA distances
+         forw_dist != "NA")
+data_clean$forw_dist <- abs(data_clean$forw_dist) # we make sure all distances are positive (see Discussion for details)
+```
+
+We now select the truncation distances. For this purpose, we produce histograms and boxplots to identify outliers:
+
+```{r truncation-perpendicular-distances}
+par(mfrow = c(1,2))
+hist(data_clean$perp_dist, main = "", xlab = "Perpendicular distance (m)")
+boxplot(data_clean$perp_dist, ylab = "Perpendicular distance (m)")
+
+no_data <- round(params$trunc_perp_dist_perc*length(data_clean$perp_dist)/100,0) # no. data to be deleted
+threshold <- sort(data_clean$perp_dist, decreasing = TRUE)[no_data+1] # threshold
+data_trunc <- 
+  data_clean %>% 
+  filter(perp_dist <= threshold)
+```
+
+The histogram and the box plot do not suggest the presence of outliers. Nevertheless, we apply a standard truncation distance of `r params$trunc_perp_dist_perc`%, we remove `r no_data` records.
+
+*Please note that the percentage of data can be changed by modifying the parameters of this notebook (or via the "Knit with parameters" option in the Knit menu).*
+
+We also produce the histogram and the boxplot for the forward distances:
+
+```{r truncation-forward-distances}
+par(mfrow = c(1,2))
+hist(data_trunc$forw_dist, main = "", xlab = "Forward distance (m)")
+boxplot(data_trunc$forw_dist, ylab = "Forward distance (m)")
+```
+
+
+If outliers are detected in the forward distances, they can be removed by setting a custom `trunc_forw_dist_m` parameter value. If truncation is not necessary, just set the `trunc_forw_dist_m` to value >= than the largest forward distance. In this case, we keep the maximum observed distance, since there is no evidence of outliers.
+
+```{r outliers-forward-distances}
+# ystart = max(data_trunc$forw_dist) # change this to the desired truncation distance if necessary, e.g.
+ystart = params$trunc_forw_dist_m
+data_trunc <- 
+  data_trunc %>% 
+  filter(forw_dist <= ystart)
+```
+
+When all truncations have been applied, the truncated data are saved to a `data_trunc` .RData file, to be used in the following (optional) DSM analyses.
+
+```{r data_trunc-save}
+save(data_trunc, file = paste("output/data_trunc_", params$species_name,".RData", sep = ""), compress = FALSE)
+```
+
+
+
+
+## Model fitting and estimation of the number of groups
+
+We now fit 2D distance sampling model using multiple initial value to avoid local *minima* in the deviance (Elenga et al. 2020).
+<!-- and we obtain the estimates of the detection probabilities (p-hat) and the number of groups (N) with bootstrap confidence intervals: -->
+As in Elenga et al. (2020), we model the detection function in two dimensions using a radial exponential hazard risk (\(h_{HB}\) under the notation of Borchers & Cox 2017), thereby making the same approximation as the half-normal detection function that is commonly found to describe the detection process in 1D. That is, we use the `h.RE` function of Elenga et al. (2020) for modeling the decay in detection rate with radial distance, and the `pi.sigmo` function of Elenga et al. (2020) for modeling the change in animal density with perpendicular distance to a line-transect (i.e., the behavioural response). See also Elenga et al. (2020) for alternative functions.
+
+```{r model-fitting}
+seed_no <- set.seed(params$seed_no)
+#### Model fitting
+y = data_trunc$forw_dist
+x = data_trunc$perp_dist
+hr = params$h.function # h.yTRE not compatible with pi.sigmoI
+# these functions work: h.RE, h.IP, h.SS, h.okamura
+pi.x = params$pi.function # perpendicular distance function used
+# functions tested and working with h.RE: pi.sigmo, pi.CHN, pi.TN
+ystart = ceiling(max(y))
+w = ceiling(max(x))
+length.b = params$n_pars # 2023-10-26
+debug=FALSE
+
+ FIT=list(); dev=NULL
+ for (m in 1:10) {
+   set.seed(params$seed_no)
+   pars = rnorm(4, c(0.25,0.25,-4,-1), 3)
+   set.seed(params$seed_no)
+   tmp0 <- tryCatch.W.E (
+     fityx(y,x,pars[1:length.b],
+           hr,ystart,pi.x,pars[(length.b+1):length(pars)],w,control=list(),
+           hessian=TRUE,corrFlag=0.7,debug=FALSE)
+   )
+   fit = NA
+   if(! "error" %in% class(tmp0$value)) {
+     fit <- tmp0$value
+     fit$vcov <-  matrix(Matrix::nearPD(fit$vcov)$mat,4,4)
+   }
+   FIT[[m]] = fit
+   if(is.na(fit[1])) dev=c(dev, 1e12) else dev = c(dev, fit$val)
+ }
+ fitVU = FIT[[which.min(dev)]]
+ tabVU = matrix(NA,2,3)
+ if(is.na(fitVU[1])) tabVU = matrix(NA,2,3) else {
+   # set.seed(10)
+   tmp1 <- tryCatch.W.E (boot(fitVU))
+ if(! "error" %in% class(tmp1$value))  tabVU=tmp1$value
+ }
+# tabVU # the CIs for the average p and the N of groups are generated by bootstrap
+if(!is.numeric(unlist(tabVU))) print("error, change seed_no to any random number")
+save(fitVU, file = paste("output/fitVU_", params$species_name, ".RData", sep = ""), compress = FALSE)
+save(FIT, file = paste("output/FIT_", params$species_name, ".RData", sep = ""), compress = FALSE)
+```
+
+The following figure shows the actual distribution of animals (continuous black line), the "observed" detection function (bold red line) and the "corrected" detection function (dashed black line), that takes into account the behavioural response
+
+```{r plot-df-greyscale, echo=FALSE, eval=FALSE}
+tryCatch.W.E(plotfit.x(x[x<=w],fitVU,nclass=20,nint=100));rug(x[x<=w])
+# see https://github.com/david-borchers/LT2D/blob/master/inst/FitsForPaper.r
+```
+
+```{r plot-df-red}
+# tryCatch.W.E(plotfit.x.red(x[x<=w],fitVU,nclass=20,nint=100));rug(x[x<=w])
+# see https://github.com/david-borchers/LT2D/blob/master/inst/FitsForPaper.r
+# the original plotfit.x function has been modified to customize the colors
+plotfit.x.red(x[x<=w],fitVU,nclass=20,nint=100);rug(x[x<=w])
+```
+
+
+We now perform checks on the model, to verify the goodness of fit in the perpendicular dimension (Kolmogarov-Smirnov and Cramer-von Mises p-values are also reported):
+
+```{r gof-tests-perp}
+fName = "h1"
+# GoF for perpendicular distances
+GoFx(fitVU,plot=TRUE)$pvals
+``` 
+
+We also verify the goodness of fit in the forward dimension
+
+```{r}
+# GoF for forward distances
+GoFy_vlm(fitVU,plot=TRUE)$pvals
+# plotfit.smoothfy(fitVU,nclass=32);rug(x=y[x<=w])
+# plotfit.y(y[x<=w & y<=ystart],x,fitVU,nclass=20);rug(x=y[x<=w])
+plotfit.smoothfy(fitVU,xmax=199)
+```
+
+Finally, we summarise the results on the **detection probability** and the **number of groups** in the surveyed region:
+
+```{r detection-prob}
+(LT2D::phatModels(modList = FIT[which.min(dev)], # same as fitVU
+                 n=length(na.omit(data_trunc$cluster_size))) -> stats_df_groups)
+```
+
+Indeed, number of groups in the surveyed area is estimated by dividing the number of observed groups (`n`) for the detection probability. The following table shows the estimated number of groups and the density per square km:
+
+```{r groups}
+length(na.omit(data_trunc$cluster_size))/(phatInterval(fitVU))[1] -> no_groups
+names(no_groups) <- "no_groups"
+
+data %>% 
+  mutate(transetto = factor(transect)) %>%
+  dplyr::group_by(transetto) %>% 
+  dplyr::summarise(no_groups_transect = sum(detected),
+                   transect_length = mean(transect_length)) %>% 
+  mutate(encounter_rate = no_groups_transect/transect_length) -> res
+# res
+
+(2*(w/1000)*sum(res$transect_length)) -> surveyed_area # here, the truncation distance is divided by 1000, to express the density in km2
+(no_groups/surveyed_area) -> dens_groups_km2 
+names(dens_groups_km2) <- "dens_groups_km2"
+cbind(no_groups, dens_groups_km2)
+```
+
+
+## Cluster size stats and estimated number of individuals with CV
+
+In order to estimate the number of individuals, we now consider the cluster size data, summarizing them and calculating the cluster size standard deviation:
+
+```{r cluster-size}
+data_clustersize <- 
+  data %>% 
+  filter(detected != 0,
+         perp_dist != "NA",
+         forw_dist != "NA",
+         perp_dist <= w,
+         forw_dist <= ystart)
+data_clustersize$forw_dist <- abs(data_clustersize$forw_dist)
+print("Cluster size base stats:")
+summary(data_clustersize$cluster_size)
+print("Cluster size standard deviation:")
+sd(data_clustersize$cluster_size)
+```
+
+The estimated abundance of individual animals (`abund_survey_individuals`) is obtained by multiplying the estimated number of groups (`no_groups`) for the mean cluster size.
+
+```{r individuals}
+no_groups*mean(data_clustersize$cluster_size) -> abund_survey_individuals # estimated abundance, individuals
+data.frame(abund_survey_individuals[1],abund_survey_individuals/surveyed_area) -> df
+names(df) <- c("no_individuals","dens_individuals_km2")
+df
+```
+
+Then, we can estimate the overall coefficient of variation of this estimate using the Delta method. According to this approximation, when two or more components are multiplied together, the squared CVs add. In this case the components of the formula to estimate the abundance (or density) are the encounter rate, the detection function and the cluster size. 
+
+```{r CVs}
+cv_encounterrate <- (sd(res$encounter_rate)/mean(res$encounter_rate))
+cv_detfunc <- (phatInterval(fitVU)[2])
+cv_clustersize <- (sd(data_clustersize$cluster_size)/mean(data_clustersize$cluster_size))
+
+cv_tot <- sqrt(cv_detfunc^2 + cv_clustersize^2 + cv_encounterrate^2)
+
+component = c("Encounter rate", "Cluster size", "Detection function", "Abundance")
+CV = c(cv_encounterrate, cv_clustersize, cv_detfunc[[1]], cv_tot[[1]])
+data.frame(component, CV)
+```
+
+
+The table with the details of the CVs allows to identify potential issues, e.g. components that strongly affect the overall coefficient of variation.   
+
+# Results - summary
+
+Finally, the essential results of the survey:
+
+
+```{r main-results}
+stats <- list(dim(data_trunc)[1],
+           paste(min(data_trunc$perp_dist)," - ",max(data_trunc$perp_dist)),
+           paste(min(data_trunc$forw_dist)," - ",max(data_trunc$forw_dist)),
+           paste(params$h.function,"/",params$pi.function),
+           fitVU$AIC,
+           dim(res)[1],
+           sum(res$transect_length),
+           surveyed_area)
+names(stats) <- c("Number of oservations", "Perpendicular distance range (m)",
+                      "Forward distance range (m)", "Model",
+                      "AIC", "Number of transects",
+                      "Effort (km)", "Surveyed area (km2)")
+as.data.frame(do.call(rbind, stats)) -> statistics
+colnames(statistics) <- NULL
+statistics
+
+stats_df_groups$NhatLower*mean(data_clustersize$cluster_size) -> ind_min
+stats_df_groups$NhatUpper*mean(data_clustersize$cluster_size) -> ind_max
+
+# rows = c("Average p", "N groups", "N individuals")
+Estimate = c(stats_df_groups$phat, stats_df_groups$Nhat, abund_survey_individuals[[1]])
+Lower = c(stats_df_groups$lower.bound, stats_df_groups$NhatLower, ind_min)
+Upper = c(stats_df_groups$upper.bound, stats_df_groups$NhatUpper, ind_max)
+data.frame(Estimate,Lower,Upper) -> results
+row.names(results) <- c("Average p", "N groups", "N individuals")
+results
+      
+```
+
+# References
+
+Borchers DL, Cox MJ (2017) Distance sampling detection functions: 2D or not 2D? Biometrics 73(2):593-602. https://doi.org/10.1111/biom.12581    
+Elenga G, Bonenfant C, Péron G (2020) Distance sampling of duikers in the rainforest: Dealing with transect avoidance. PLOS ONE 15(10): e0240049. https://doi.org/10.1371/journal.pone.0240049
+
+h.RE/pi.sigmo 392.998230207762
+h.PI/pi.sigmo
+h.okamura/p.sigmo 408.762520252286

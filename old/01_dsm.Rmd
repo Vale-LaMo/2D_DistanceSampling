@@ -1,0 +1,1510 @@
+---
+title: "Density surface modelling"
+params:
+  seed_no: 16
+  convertion_km_m: 1/1000
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r packages, message=FALSE}
+# install.packages(c("dsm", "Distance", "distill", "rgdal",
+#                    "maptools", "plyr", "tweedie"))
+#### Load packages
+library(tidyverse)
+library(readxl)
+library(mvtnorm)
+# if(!"devtools" %in% rownames(installed.packages())) 
+#   {install.packages("devtools")}
+# devtools::install_github('david-borchers/LT2D')
+library(LT2D)
+library(dsm)
+library(Distance)
+library(distill)
+library(rgdal)
+library(plyr)
+library(maptools)
+library(tweedie)
+```
+
+```{r functions}
+#### Load 2D distance functions
+source("functions/com_hfunctions.R")
+source("functions/com_pifunctions.R")
+source("functions/com_likelihoodutilities.R")
+source("functions/GoFy_vlm.R") # custom GoFy function, modified by VLM 2022-11-11
+```
+
+
+
+# Data preparation: impala
+
+## Data import
+
+First of all, we need to prepare the data for the following DSM analysis.
+We need three data.frames:
+
+- **segdata** holds the segment data (transects “chopped” into segments), with all the covariates
+- **obsdata** obsdata links the distance data (already used in the previous step of the analysis to fit the detection function) to the segments
+- **preddata** holds the prediction grid (which includes all the necessary covariates)
+
+
+<!-- The dataset (Excel file) should include the following columns (order matters):    -->
+
+<!-- - `area`: surface of the study area, in km2 -->
+<!-- - `transect`: transect label (it could be a number or a letter) -->
+<!-- - `transect_length`: length of the transect, in m -->
+<!-- - `obs_time`: date and time stamp (optional) -->
+<!-- - `X_observer`: x-coord of the observer (optional) -->
+<!-- - `Y_observer`: y-coord of the observer (optional) -->
+<!-- - `detected`: a field whose value is 1 in caso of detection of a group of animals, 0 otherwise -->
+<!-- - `cluster_size`: number of animals in the group (optional, only if the group has been detected) -->
+<!-- - `perp_dist`: perpedicular distance to the observer (optional, only if the group has been detected) -->
+<!-- - `forw_dist`: forward distance to the observer (optional, only if the group has been detected) -->
+<!-- - `id_record`: a progressive number to identify each record -->
+<!-- All optional fields can have empty cells (or *NA*) in the Excel file. On the contrary, *NA*s are not admitted in the fields: `area`, `transect`, `transect_length`, `detected`, `id_record`. -->
+
+*Please note that when reading the file, we specify the column types: make sure to maintain the recommended order of the columns to avoid errors in the procedure; additional columns could of course be added, or the order changed, but then you will have to modify the `col_types` argument accordingly*
+
+```{r segdata-loading}
+#### Load dataset
+segdata <- read_excel("data/segments400.xlsx",
+                      # orignal file name: impala_segmenti_vlm_NEW.xlsx/imapla_segementi_vlm_NEW.xlsx 
+                      #"data/impala_segmenti_vlm.xlsx",
+                      #sheet="template_dataset",
+                      col_types = c(rep("text", 2),
+                                    rep("numeric", 3),
+                                    "text",
+                                    rep("numeric", 5)))
+head(segdata)
+```
+
+
+
+```{r}
+obsdata <- read_excel("data/obsdata.xlsx",
+                      #sheet="template_dataset",
+                      col_types = c("numeric",
+                                    "text",
+                                    rep("numeric", 3)))
+head(obsdata)
+```
+
+For the observations, we have to consider the ones already used in the previous step of the analysis to fit the detection function. Thus, we load the corresponding *.RData* file and the detection function, and we link the two datasets (`obsdata` and `trunc_data`) to obtain the final `obsdata` object
+
+```{r}
+# please note that data_trunc comes from 00_intro
+load("output/data_trunc.RData")
+load("output/fitVU.RData")
+left_join(obsdata, data_trunc, by = "object") %>% 
+  dplyr::select(object:Effort, cluster_size, perp_dist) %>% 
+  dplyr::rename(size = cluster_size, distance = perp_dist) -> obsdata
+
+# include a column to identify the detection function object: here, we only have one detection function
+# so the ddfobj colum has a fixed value of 1 and it is added to both the segments and the observation datasets
+obsdata %>% 
+  mutate(ddfobj = 1) -> obsdata
+segdata %>% 
+  mutate(ddfobj = 1) -> segdata
+```
+
+
+```{r, eval=FALSE}
+# model specification
+# dsm.xy <- dsm(count~s(x,y), ddf.obj=fitVU, unique(segdata), obsdata, method="REML")
+formula <- abundance.est ~ s(x,y)
+ddf.obj = fitVU
+ddfobject = fitVU
+segment.data = unique(segdata)
+observation.data = obsdata
+method = "REML"
+# segment.area = NULL
+segment.area = segdata$Effort*200*2
+group = TRUE
+availability = 1
+convert.units = 1
+response = "abundance.est"
+engine = "gam"
+
+# dsm.xy <- dsm_temp(abundance.est~s(x,y), ddf.obj=fitVU, unique(segdata), obsdata, method="REML")
+# summary(dsm.xy)
+```
+
+
+
+To reconstruct the detection function for the following DSM, we consider the detection function object obtained in the previous phase and we derive a table with the estimated detection probability for each observation:
+
+```{r}
+est = fitVU
+
+Nhat.yx=bias=NULL
+b=est$b; hr=match.fun(est$hr); ystart=est$ystart; pi.x=match.fun(est$pi.x)
+logphi=est$logphi; w=est$w
+x = obsdata$distance
+# x=x[x>=0 & x<=w]
+f.x=p.x.std=adbnTRUE=0
+# gridx=seq(1e-10,w,length=100)
+arrange(obsdata, distance) %>% 
+  dplyr::select(object, distance) %>% 
+  na.omit() -> gridx.df
+
+# p.xpifit=p.pi.x(x=data_clean$perp_dist, y = data_clean$forw_dist,b,hr,ystart,pi.x,logphi,w)
+p.xpifit=p.pi.x(gridx.df$distance,b,hr,ystart,pi.x,logphi,w)
+mufit=integrate(f=p.pi.x,lower=0,upper=w,b=b,hr=hr
+                  ,ystart=ystart,pi.x=pi.x,logphi=logphi,w=w)$value # phat media dei gruppi
+f.xfit=p.xpifit/mufit
+p.xfit=px(gridx.df$distance,b,hr,ystart,nint=nint)
+ptot=integrate(f=px,lower=0,upper=w,b=b,hr=hr,ystart=ystart)$value
+p.xfit.std=p.xfit/ptot
+adbn=pi.x(gridx.df$distance,logphi,w)
+
+bind_cols(p=p.xfit.std, gridx.df) -> fitted.p.df
+bind_cols(p=p.xfit, gridx.df) -> fitted.p.df
+
+```
+
+# Model fitting
+
+```{r}
+#' @author David Lawrence Miller
+check.cols <- function(ddf.obj, segment.data, observation.data, segment.area){
+
+  ## check that the columns are there
+  checks <- list(segment.data = c("Effort", "Sample.Label"),
+                observation.data = c("object", "Sample.Label", "size",
+                                    "distance"))
+
+  # don't need to check distance if we don't have a detection function
+  if(is.null(ddf.obj)){
+    checks$observation.data <- checks$observation.data[checks$observation.data!=
+                                                       "distance"]
+  }
+
+  if(!is.null(segment.area)){
+    checks$segment.data <- checks$segment.data[checks$segment.data != "Effort"]
+  }
+
+  for(i in seq_len(length(checks))){
+    check.res <- checks[[i]] %in% names(get(names(checks)[[i]]))
+    if(any(!check.res)){
+
+      stop(paste0("Column(s) \"",
+                  paste(checks[[i]][!check.res],collapse="\", \""),
+                  "\" not found in ", names(checks)[[i]],
+                  ".\n  Check ?\"dsm-data\"."))
+    }
+  }
+
+  ## check that Sample.Label is unique
+  if(length(segment.data$Sample.Label)!=length(
+                            unique(segment.data$Sample.Label))){
+    warning("'Sample.Labels are non-unique in segment data!")
+  }
+
+  invisible()
+}
+```
+
+```{r, eval=FALSE}
+#' @importFrom stats aggregate
+# make.data_vlm <- function(response, ddfobject, segdata, obsdata, group,
+#                       convert.units, availability, segment.area,
+#                       family){
+
+  # probably want to do something smart here...
+  seglength.name <- 'Effort'
+  segnum.name <- 'Sample.Label'
+  distance.name <- 'distance'
+  cluster.name <- 'size'
+
+  # avoid irritating "tibble" issues
+  segdata <- data.frame(segdata)
+  obsdata <- data.frame(obsdata)
+
+  # matching doesn't work later if we don't ensure character labels
+  obsdata$object <- as.character(obsdata$object)
+  obsdata$Sample.Label <- as.character(obsdata$Sample.Label)
+  segdata$Sample.Label <- as.character(segdata$Sample.Label)
+
+  # Estimating group abundance/density
+  if(group){
+    obsdata[, cluster.name][obsdata[, cluster.name] > 0] <- 1
+  }
+
+  # for single ddfs, make a list of 1
+  # if(any(c("ddf", "dsmodel")  %in% class(ddfobject))){
+    ddfobject <- list(ddfobject)
+    segdata$ddfobj <- 1
+    obsdata$ddfobj <- 1
+  # }else{
+  #   if(!any("ddfobj" %in% names(segdata))){
+  #     stop("If there are multiple detection functions there must be a column named \"ddfobj\" in the segment and observation data.frame, see ?\"dsm-data\"")
+  #   }
+  # }
+
+  # iterate over the list of ddfs
+  full_obsdata <- c()
+  segdata$segment.area <- NA
+  segdata$width <- NA
+
+  # deal with availability
+  if(response == "density.est"){
+    if(!(length(availability) %in% c(1, nrow(obsdata)))){
+      stop("Length of 'availability' must be 1 or 'obsdata' rows")
+    }
+    obsdata$availability <- availability
+  }else if(response == "count"){
+    if(!(length(availability) %in% c(1, nrow(segdata)))){
+      stop("Length of 'availability' must be 1 or 'segdata' rows")
+    }
+    segdata$availability <- availability
+  }else if(response == "abundance.est"){
+    if(!(length(availability) %in% c(1, nrow(obsdata)))){
+      stop("Length of 'availability' must be 1 or 'obsdata' rows")
+    }
+    obsdata$availability <- availability
+  }
+
+  for(i in seq_along(ddfobject)){
+
+    this_ddf <- ddfobject[[i]]
+
+    # make this a mrds ddf object if we had a Distance one
+    if(all(class(this_ddf) == "dsmodel")){
+      this_ddf <- this_ddf$ddf
+      ddfobject[[i]] <- this_ddf
+    }
+
+    # grab the probabilities of detection
+    # fitted.p <- fitted(this_ddf)
+    fitted.p <- p.xfit.std
+
+    # remove observations which were not in the detection function
+    if(!("ddfobj" %in% names(obsdata))){
+      stop("No ddfobj column in observation data")
+    }
+    # this_obsdata <- obsdata[obsdata[["ddfobj"]]==i, ]
+    this_obsdata <- filter(obsdata, distance <= w)
+
+    # Check that observations are between left and right truncation
+    # warning only -- observations are excluded below
+    # No truncation check for strip transects
+    if(any(this_obsdata[, distance.name] > this_ddf$w)){
+    # if(any(this_obsdata[, distance.name] > this_ddf$meta.data$width)){
+      warning(paste("Some observations are outside of detection function", i,
+              "truncation!"))
+    }
+
+    # reorder the fitted ps, match the ordering in obsdata
+    # put this in a column of this_obsdata
+    fitted.p.df$object <- as.character(fitted.p.df$object)
+    left_join(this_obsdata, fitted.p.df[,c("object","p")], by="object") -> this_obsdata
+    # this_obsdata$p <- fitted.p[match(this_obsdata$object, names(fitted.p))]
+
+    # calculate the "width" of the transect, make sure we get it right
+    # if we are doing left truncation
+    width <- this_ddf$w
+    if(!is.null(this_ddf$meta.data$left)){
+      width <- width - this_ddf$meta.data$left
+    }
+    segdata$width[segdata$ddfobj==i] <- width
+
+    # what if there are no matches? Perhaps this is due to the object
+    # numbers being wrong? (HINT: yes.)
+    if(nrow(this_obsdata) == 0){
+      stop(paste("No observations in detection function", i,
+                 "matched those in observation table. Check the \"object\" column."))
+    }
+
+    # # make sure that the right columns are in the obsdata
+    # if(this_ddf$method %in% c("io", "trial")){
+    #   if(!("observer" %in% names(this_obsdata))){
+    #     stop("obsdata must have a column named observer")
+    #   }else{
+    #     if((this_ddf$method == "trial") && !all(this_obsdata$observer==1)){
+    #       stop("Only observer 1 data is needed for obsdata with trial mode")
+    #     }
+    #   }
+    # }
+
+    # # depending on the detection function (and its data format)
+    # # we need a different subset of obsdata
+    # # ds = all detections
+    # # io = only unique obsns
+    # # trial = only obs 1
+    # if(this_ddf$method == "io"){
+    #   if(any(duplicated(this_obsdata$object))){
+    #     stop(paste0("Some object IDs are duplicated in observation data for detection function model ", i, " only unique IDs are required for observation data for io models"))
+    #   }
+    # }else if(this_ddf$method == "trial"){
+    #   this_obsdata <- this_obsdata[this_obsdata[["observer"]] == 1, ]
+    # }
+
+    # bind this to the full data
+    full_obsdata <- rbind(full_obsdata, this_obsdata)
+
+    # set the segment area for this detection function in the segdata
+    # if(this_ddf$meta.data$point){
+    #   # here "Effort" is number of visits
+    #   segdata$segment.area[segdata$ddfobj==i] <- pi *
+    #     segdata$width[segdata$ddfobj==i]^2 *
+    #     segdata[, seglength.name][segdata$ddfobj==i]
+    # }else{
+    # line transects
+      segdata$segment.area[segdata$ddfobj==i] <- 2 *
+        segdata[, seglength.name][segdata$ddfobj==i] *
+        segdata$width[segdata$ddfobj==i]
+    }
+
+
+  # set the full observation data
+  obsdata <- full_obsdata
+
+  # set the segment area in the data
+  if(!is.null(segment.area)){
+    segdata$segment.area <- segment.area
+  }
+
+
+  ## Aggregate response values of the sightings over segments
+  if(response == "density.est"){
+    responsedata <- aggregate(obsdata[, cluster.name]/
+                              (obsdata$p * obsdata$availability),
+                              list(obsdata[, segnum.name]), sum)
+    off.set <- "none"
+  }else if(response == "count"){
+    responsedata <- aggregate(obsdata[, cluster.name],
+                              list(obsdata[, segnum.name]), sum)
+    off.set <- "eff.area"
+  }else if(response == "abundance.est"){
+    responsedata <- aggregate(obsdata[, cluster.name]/
+                              (obsdata$p * obsdata$availability),
+                              list(obsdata[, segnum.name]), sum)
+    off.set <- "area"
+  }
+
+
+  ## warn if any observations were not allocated
+  responsecheck <- aggregate(obsdata[, cluster.name],
+                             list(obsdata[, segnum.name]), sum)
+  if(sum(obsdata[, cluster.name]) != sum(responsecheck[, 2])){
+    message(paste0("Some observations were not allocated to segments!\n",
+                   "Check that Sample.Labels match"))
+  }
+
+  # name the response data columns
+  names(responsedata) <- c(segnum.name, response)
+
+  # if the Sample.Labels don't match at all then we need to stop, nothing
+  # can work as all the response values will be zero
+  if(!any(segdata[, segnum.name] %in% responsedata[, segnum.name])){
+    stop("No matches between segment and observation data.frame Sample.Labels!")
+  }
+
+  # Next merge the response variable with the segment records and any
+  # response variable that is NA should be assigned 0 because these
+  # occur due to 0 sightings
+  dat <- merge(segdata, responsedata, by=segnum.name, all.x=TRUE)
+  dat[, response][is.na(dat[, response])] <- 0
+
+  # for the offsets with effective area, need to make sure that
+  # the ps match the segments
+  if(off.set == "eff.area"){
+    dat$p <- NA
+    for(i in seq_along(ddfobject)){
+      this_ddf <- ddfobject[[i]]
+
+      # get all the covariates in this model
+      # df_vars <- all_df_vars(this_ddf)
+      df_vars <- 0
+
+      if("fake_ddf" %in% class(this_ddf)){
+        # strip transect
+        dat[dat$ddfobj == i, ]$p <- 1
+      }else if(length(df_vars) == 0){
+        # if there are no covariates, and all the fitted ps are the same
+        # then just duplicate that value enough times for the segments
+        dat[dat$ddfobj == i, ]$p <- rep(fitted(this_ddf)[1],
+                                        nrow(dat[dat$ddfobj == i, ]))
+      }else if(this_ddf$method %in% c("ds", "io", "trial")){
+        # get all the covariates in this model
+        # df_vars <- all_df_vars(this_ddf)
+        df_vars <- NULL
+
+        # check these vars are in the segment table
+        if(!all(df_vars %in% colnames(dat))){
+          stop(paste0("Detection function covariates are not in the segment data",
+                      "\n  Missing: ", df_vars[!(df_vars %in% colnames(dat))]))
+        }
+
+        # make a data.frame to predict for
+        nd <- dat[dat$ddfobj == i, ]#[, df_vars, drop=FALSE]
+        nd$distance <- 0
+
+        this_ddf$method <- "2DDS"
+        if(this_ddf$method == "io"){
+          nd <- rbind(nd, nd)
+          nd$observer <- c(rep(1, nrow(nd)/2), rep(2, nrow(nd)/2))
+          dat[dat$ddfobj == i, ]$p <- predict(this_ddf, newdata=nd)$fitted
+        }else if(this_ddf$method == "trial"){
+          nd$observer <- 1
+          dat[dat$ddfobj == i, ]$p <- predict(this_ddf, newdata=nd)$fitted
+        }else{
+          dat[dat$ddfobj == i, ]$p <- predict(this_ddf, newdata=nd)$fitted
+        }
+      }else{
+        stop("Only \"ds\", \"io\" and \"trial\" models are supported!")
+      }
+    } # end loop over detection functions
+  }
+
+  # check that none of the Effort values are zero
+  if(any(dat[, seglength.name]==0)){
+    stop(paste0("Effort values for segments: ",
+                paste(which(dat[, seglength.name]==0), collapse=", "),
+                " are 0."))
+  }
+
+  # correct segment area units
+  dat$segment.area <- dat$segment.area*convert.units
+
+  # calculate the offset
+  #   area we just calculate the area
+  #   effective area multiply by p (and availability)
+  #   when density is response, offset should be 1 (and is ignored anyway)
+  dat$off.set <- switch(off.set,
+                        eff.area = dat$segment.area*dat$p*dat$availability,
+                        area     = dat$segment.area,
+                        none     = 1)
+
+  # calculate the density (count/area)
+  if(response == "abundance.est"){
+    dat[, response] <- dat[, response]/(dat$segment.area)
+  }
+
+
+  # Set offset as log (or whatever link is) of area or effective area
+  # dat$off.set <- family$linkfun(dat$off.set)
+  dat$off.set <- log(dat$off.set)
+
+  # return(dat)
+# }
+```
+
+
+```{r}
+#' @importFrom stats aggregate
+make.data_vlm <- function(response, ddfobject, segdata, obsdata, group,
+                      convert.units, availability, segment.area,
+                      family){
+
+  # probably want to do something smart here...
+  seglength.name <- 'Effort'
+  segnum.name <- 'Sample.Label'
+  distance.name <- 'distance'
+  cluster.name <- 'size'
+
+  # avoid irritating "tibble" issues
+  segdata <- data.frame(segdata)
+  obsdata <- data.frame(obsdata)
+
+  # matching doesn't work later if we don't ensure character labels
+  obsdata$object <- as.character(obsdata$object)
+  obsdata$Sample.Label <- as.character(obsdata$Sample.Label)
+  segdata$Sample.Label <- as.character(segdata$Sample.Label)
+
+  # Estimating group abundance/density
+  if(group){
+    obsdata[, cluster.name][obsdata[, cluster.name] > 0] <- 1
+  }
+
+  # for single ddfs, make a list of 1
+  # if(any(c("ddf", "dsmodel")  %in% class(ddfobject))){
+    ddfobject <- list(ddfobject)
+    segdata$ddfobj <- 1
+    obsdata$ddfobj <- 1
+  # }else{
+  #   if(!any("ddfobj" %in% names(segdata))){
+  #     stop("If there are multiple detection functions there must be a column named \"ddfobj\" in the segment and observation data.frame, see ?\"dsm-data\"")
+  #   }
+  # }
+
+  # iterate over the list of ddfs
+  full_obsdata <- c()
+  segdata$segment.area <- NA
+  segdata$width <- NA
+
+  # deal with availability
+  if(response == "density.est"){
+    if(!(length(availability) %in% c(1, nrow(obsdata)))){
+      stop("Length of 'availability' must be 1 or 'obsdata' rows")
+    }
+    obsdata$availability <- availability
+  }else if(response == "count"){
+    if(!(length(availability) %in% c(1, nrow(segdata)))){
+      stop("Length of 'availability' must be 1 or 'segdata' rows")
+    }
+    segdata$availability <- availability
+  }else if(response == "abundance.est"){
+    if(!(length(availability) %in% c(1, nrow(obsdata)))){
+      stop("Length of 'availability' must be 1 or 'obsdata' rows")
+    }
+    obsdata$availability <- availability
+  }
+
+  for(i in seq_along(ddfobject)){
+
+    this_ddf <- ddfobject[[i]]
+
+    # make this a mrds ddf object if we had a Distance one
+    if(all(class(this_ddf) == "dsmodel")){
+      this_ddf <- this_ddf$ddf
+      ddfobject[[i]] <- this_ddf
+    }
+
+    # grab the probabilities of detection
+    # fitted.p <- fitted(this_ddf)
+    fitted.p <- p.xfit.std
+
+    # remove observations which were not in the detection function
+    if(!("ddfobj" %in% names(obsdata))){
+      stop("No ddfobj column in observation data")
+    }
+    # this_obsdata <- obsdata[obsdata[["ddfobj"]]==i, ]
+    this_obsdata <- filter(obsdata, distance <= w)
+
+    # Check that observations are between left and right truncation
+    # warning only -- observations are excluded below
+    # No truncation check for strip transects
+    if(any(this_obsdata[, distance.name] > this_ddf$w)){
+    # if(any(this_obsdata[, distance.name] > this_ddf$meta.data$width)){
+      warning(paste("Some observations are outside of detection function", i,
+              "truncation!"))
+    }
+
+    # reorder the fitted ps, match the ordering in obsdata
+    # put this in a column of this_obsdata
+    fitted.p.df$object <- as.character(fitted.p.df$object)
+    left_join(this_obsdata, fitted.p.df[,c("object","p")], by="object") -> this_obsdata
+    # this_obsdata$p <- fitted.p[match(this_obsdata$object, names(fitted.p))]
+
+    # calculate the "width" of the transect, make sure we get it right
+    # if we are doing left truncation
+    width <- this_ddf$w
+    if(!is.null(this_ddf$meta.data$left)){
+      width <- width - this_ddf$meta.data$left
+    }
+    segdata$width[segdata$ddfobj==i] <- width
+
+    # what if there are no matches? Perhaps this is due to the object
+    # numbers being wrong? (HINT: yes.)
+    if(nrow(this_obsdata) == 0){
+      stop(paste("No observations in detection function", i,
+                 "matched those in observation table. Check the \"object\" column."))
+    }
+
+    # # make sure that the right columns are in the obsdata
+    # if(this_ddf$method %in% c("io", "trial")){
+    #   if(!("observer" %in% names(this_obsdata))){
+    #     stop("obsdata must have a column named observer")
+    #   }else{
+    #     if((this_ddf$method == "trial") && !all(this_obsdata$observer==1)){
+    #       stop("Only observer 1 data is needed for obsdata with trial mode")
+    #     }
+    #   }
+    # }
+
+    # # depending on the detection function (and its data format)
+    # # we need a different subset of obsdata
+    # # ds = all detections
+    # # io = only unique obsns
+    # # trial = only obs 1
+    # if(this_ddf$method == "io"){
+    #   if(any(duplicated(this_obsdata$object))){
+    #     stop(paste0("Some object IDs are duplicated in observation data for detection function model ", i, " only unique IDs are required for observation data for io models"))
+    #   }
+    # }else if(this_ddf$method == "trial"){
+    #   this_obsdata <- this_obsdata[this_obsdata[["observer"]] == 1, ]
+    # }
+
+    # bind this to the full data
+    full_obsdata <- rbind(full_obsdata, this_obsdata)
+
+    # set the segment area for this detection function in the segdata
+    # if(this_ddf$meta.data$point){
+    #   # here "Effort" is number of visits
+    #   segdata$segment.area[segdata$ddfobj==i] <- pi *
+    #     segdata$width[segdata$ddfobj==i]^2 *
+    #     segdata[, seglength.name][segdata$ddfobj==i]
+    # }else{
+    # line transects
+      segdata$segment.area[segdata$ddfobj==i] <- 2 *
+        segdata[, seglength.name][segdata$ddfobj==i] *
+        segdata$width[segdata$ddfobj==i]
+    }
+
+
+  # set the full observation data
+  obsdata <- full_obsdata
+
+  # set the segment area in the data
+  if(!is.null(segment.area)){
+    segdata$segment.area <- segment.area
+  }
+
+
+  ## Aggregate response values of the sightings over segments
+  if(response == "density.est"){
+    responsedata <- aggregate(obsdata[, cluster.name]/
+                              (obsdata$p * obsdata$availability),
+                              list(obsdata[, segnum.name]), sum)
+    off.set <- "none"
+  }else if(response == "count"){
+    responsedata <- aggregate(obsdata[, cluster.name],
+                              list(obsdata[, segnum.name]), sum)
+    off.set <- "eff.area"
+  }else if(response == "abundance.est"){
+    responsedata <- aggregate(obsdata[, cluster.name]/
+                              (obsdata$p * obsdata$availability),
+                              list(obsdata[, segnum.name]), sum)
+    off.set <- "area"
+  }
+
+
+  ## warn if any observations were not allocated
+  responsecheck <- aggregate(obsdata[, cluster.name],
+                             list(obsdata[, segnum.name]), sum)
+  if(sum(obsdata[, cluster.name]) != sum(responsecheck[, 2])){
+    message(paste0("Some observations were not allocated to segments!\n",
+                   "Check that Sample.Labels match"))
+  }
+
+  # name the response data columns
+  names(responsedata) <- c(segnum.name, response)
+
+  # if the Sample.Labels don't match at all then we need to stop, nothing
+  # can work as all the response values will be zero
+  if(!any(segdata[, segnum.name] %in% responsedata[, segnum.name])){
+    stop("No matches between segment and observation data.frame Sample.Labels!")
+  }
+
+  # Next merge the response variable with the segment records and any
+  # response variable that is NA should be assigned 0 because these
+  # occur due to 0 sightings
+  dat <- merge(segdata, responsedata, by=segnum.name, all.x=TRUE)
+  dat[, response][is.na(dat[, response])] <- 0
+
+  # for the offsets with effective area, need to make sure that
+  # the ps match the segments
+  if(off.set == "eff.area"){
+    dat$p <- NA
+    for(i in seq_along(ddfobject)){
+      this_ddf <- ddfobject[[i]]
+
+      # get all the covariates in this model
+      # df_vars <- all_df_vars(this_ddf)
+      df_vars <- 0
+
+      if("fake_ddf" %in% class(this_ddf)){
+        # strip transect
+        dat[dat$ddfobj == i, ]$p <- 1
+      }else if(length(df_vars) == 0){
+        # if there are no covariates, and all the fitted ps are the same
+        # then just duplicate that value enough times for the segments
+        dat[dat$ddfobj == i, ]$p <- rep(fitted(this_ddf)[1],
+                                        nrow(dat[dat$ddfobj == i, ]))
+      }else if(this_ddf$method %in% c("ds", "io", "trial")){
+        # get all the covariates in this model
+        # df_vars <- all_df_vars(this_ddf)
+        df_vars <- NULL
+
+        # check these vars are in the segment table
+        if(!all(df_vars %in% colnames(dat))){
+          stop(paste0("Detection function covariates are not in the segment data",
+                      "\n  Missing: ", df_vars[!(df_vars %in% colnames(dat))]))
+        }
+
+        # make a data.frame to predict for
+        nd <- dat[dat$ddfobj == i, ]#[, df_vars, drop=FALSE]
+        nd$distance <- 0
+
+        this_ddf$method <- "2DDS"
+        if(this_ddf$method == "io"){
+          nd <- rbind(nd, nd)
+          nd$observer <- c(rep(1, nrow(nd)/2), rep(2, nrow(nd)/2))
+          dat[dat$ddfobj == i, ]$p <- predict(this_ddf, newdata=nd)$fitted
+        }else if(this_ddf$method == "trial"){
+          nd$observer <- 1
+          dat[dat$ddfobj == i, ]$p <- predict(this_ddf, newdata=nd)$fitted
+        }else{
+          dat[dat$ddfobj == i, ]$p <- predict(this_ddf, newdata=nd)$fitted
+        }
+      }else{
+        stop("Only \"ds\", \"io\" and \"trial\" models are supported!")
+      }
+    } # end loop over detection functions
+  }
+
+  # check that none of the Effort values are zero
+  if(any(dat[, seglength.name]==0)){
+    stop(paste0("Effort values for segments: ",
+                paste(which(dat[, seglength.name]==0), collapse=", "),
+                " are 0."))
+  }
+
+  # correct segment area units
+  dat$segment.area <- dat$segment.area*convert.units
+
+  # calculate the offset
+  #   area we just calculate the area
+  #   effective area multiply by p (and availability)
+  #   when density is response, offset should be 1 (and is ignored anyway)
+  dat$off.set <- switch(off.set,
+                        eff.area = dat$segment.area*dat$p*dat$availability,
+                        area     = dat$segment.area,
+                        none     = 1)
+
+  # calculate the density (count/area)
+  if(response == "abundance.est"){
+    dat[, response] <- dat[, response]/(dat$segment.area)
+  }
+
+
+  # Set offset as log (or whatever link is) of area or effective area
+  # dat$off.set <- family$linkfun(dat$off.set)
+  dat$off.set <- log(dat$off.set)
+
+return(dat)
+}
+```
+
+```{r}
+dat <- make.data_vlm(response = "abundance.est", ddfobject = fitVU,
+                          segdata, obsdata, group = FALSE,
+                          convert.units = 1/1000, availability = 1,
+                          segment.area = segdata$Effort*200*2,
+                          family = tw())
+```
+
+
+We can now fit the gam model to the data. However, we still need a fake ddf object for use inside the `dms` function:
+
+```{r}
+# if we didn't use ds()...
+# probs <- hr.model$ddf$fitted
+# object.ids <- names(hr.model$ddf$fitted)
+
+probs <- fitted.p.df$p
+object.ids <- fitted.p.df$object
+
+fake.ddf <- list()
+fake.ddf$meta.data <- list()
+# fake.ddf$meta.data$width <- max(mexdolphins$distdata$distance)
+fake.ddf$meta.data$width <- 200
+fake.ddf$meta.data$left <- 0
+fake.ddf$fitted <- probs
+names(fake.ddf$fitted) <- object.ids
+```
+
+```{r}
+dsm_vale <- function (formula, ddf.obj, segment.data, observation.data, engine = "gam", dat, 
+    convert.units = 1, family = quasipoisson(link = "log"), group = FALSE, 
+    control = list(keepData = TRUE), availability = 1, segment.area = NULL, 
+    weights = NULL, method = "REML", ...) 
+{
+    stopifnot(engine %in% c("gam", "bam", "glm", "gamm"))
+    if (is.null(ddf.obj)) {
+        stop("NULL detection functions no longer supported, see ?dummy_ddf")
+    }
+    if (all(class(ddf.obj) != "list")) {
+        if (all(class(ddf.obj) == "dsmodel")) {
+            ddf.obj <- ddf.obj$ddf
+        }
+    }
+    else {
+        if (length(ddf.obj) == 1) {
+            ddf.obj <- ddf.obj[[1]]
+        }
+        for (i in seq_along(ddf.obj)) {
+            if (all(class(ddf.obj[[i]]) == "dsmodel")) {
+                ddf.obj[[i]] <- ddf.obj[[i]]$ddf
+            }
+        }
+    }
+    response <- as.character(formula)[2]
+    if (response %in% c("presence", "D", "density", "Dhat", "N", 
+        "Nhat", "n")) {
+        stop(paste("Response", response, "is deprecated, see ?dsm for details."))
+    }
+    possible.responses <- c("density.est", "count", "abundance.est")
+    if (!(response %in% possible.responses)) {
+        stop(paste("Model must be one of:", paste(possible.responses, 
+            collapse = ", ")))
+    }
+    # check.cols(ddf.obj, segment.data, observation.data, segment.area)
+    # dat <- make.data(response, ddf.obj, segment.data, observation.data, 
+        # group, convert.units, availability, segment.area, family)
+    if (!(response %in% c("density.est"))) {
+        formula <- as.formula(paste(c(as.character(formula)[c(2, 
+            1, 3)], "+ offset(off.set)"), collapse = ""))
+    }
+    else {
+        if (is.null(weights)) {
+            weights <- dat$segment.area
+        }
+        else if (length(weights) == 1) {
+            weights <- rep(weights, nrow(dat))
+        }
+    }
+    if (engine == "gamm" && dsm_env$old_mgcv) {
+        message("You are using mgcv version < 1.7-24, please update to at least 1.7-24 to avoid fitting problems.")
+    }
+    if (engine %in% c("glm", "gamm")) {
+        control$keepData <- NULL
+    }
+    args <- list(formula = formula, family = family, data = dat, 
+        weights = weights, control = control, method = method, 
+        ...)
+    if (engine == "glm") {
+        args$method <- NULL
+    }
+    fit <- withCallingHandlers(do.call(engine, args), warning = "matrixnotposdef.handler")
+    if ("knots" %in% names(match.call())) {
+        fit$knots <- get(as.character(match.call()$knots))
+    }
+    if (engine == "gamm") {
+        fit$gam$ddf <- ddf.obj
+        fit$gam$data <- dat
+        fit$gam$gamm.call.list <- list(formula = formula, family = family, 
+            data = dat, control = control)
+    }
+    else {
+        fit$ddf <- ddf.obj
+    }
+    class(fit) <- c("dsm", class(fit))
+    return(fit)
+}
+```
+
+
+
+```{r}
+mod1<-dsm_vale(abundance.est ~ s(x,y), fake.ddf,
+               segment.data, observation.data, dat = dat,
+               convert.units = 1/1000, group = FALSE)
+
+summary(mod1)
+```
+
+
+# Prediction
+
+To predict the abundance, we first import the grid data:
+
+```{r preddata-loading}
+#### Load dataset
+preddata <- read_excel("data/grid400.xlsx",
+                      # orignal file name: impala_segmenti_vlm_NEW.xlsx/imapla_segementi_vlm_NEW.xlsx 
+                      #"data/impala_segmenti_vlm.xlsx",
+                      #sheet="template_dataset",
+                      col_types = c(rep("text", 2),
+                                    rep("numeric", 6)))
+preddata %>%
+  mutate(area = 400*400) -> preddata
+head(preddata)
+# dsm.xy.pred <- predict.gam(fit,
+#                        newdata = preddata)#,
+#                        # off.set = preddata$area)
+# sum(dsm.xy.pred) # numero dei gruppi
+```
+
+```{r}
+# predict over a grid
+mod1.pred <- predict(mod1, preddata, preddata$area)
+
+# calculate the predicted abundance over the grid
+sum(mod1.pred)
+
+# plot the smooth
+plot(mod1)
+```
+
+STOP QUI, L'ANALISI DELLA VARIANZA SI IMPALLA, CERCO POI DI RISOLVERE SUCCESSIVAMENTE
+
+```{r}
+preddata.var <- split(preddata, 1:nrow(preddata))
+dsm.xy.var <- dsm_var_gam(mod1, pred.data=preddata.var,
+                          off.set=preddata$area)
+summary(dsm.xy.var) # questo non funziona
+source("functions/summary.dsm.var.vale.R")
+cv2_detfunc <- (phatInterval(fitVU)[2])^2
+# cvp.sq <- cv2_detfunc
+# this_cvp.sq <- cv2_detfunc
+summary.dsm.var.vale(dsm.xy.var)
+
+SE = (upper limit – lower limit) / 3.92
+SE = (27505.77 - 3232.511) /3.92
+SE/9429.353
+
+9429/((dim(preddata))[1]) # densità su 16 ettari, o 0.16 km2
+1.4:0.16 = x:1
+1.4/0.16 # densità al km2
+
+```
+
+```{r}
+## --- Variance estimation per il modello scelto ----
+#
+# righe da non modificare
+preddata.varprop.subset <- split(preddata, 1:nrow(preddata))
+offset.varprop.subset <- as.list(rep(preddata$area[1],nrow(preddata)))
+# # solo per paper proprietà private
+# preddata.varprop.subset_pp <- split(preddata.subset2_pp, 1:nrow(preddata.subset2_pp))
+# offset.varprop.subset_pp <- as.list(rep(off.set,nrow(preddata.subset2_pp)))
+#
+dsm.var.subset <- dsm_var_gam(dsm.obj=mod1, pred.data=preddata.varprop.subset, 
+                              off.set = offset.varprop.subset, #seglen.varname = "Effort", 
+                              type.pred = "response")
+summary(dsm.var.subset)
+# # solo per paper proprietà private
+# dsm.var.subset_pp <- dsm.var.gam(dsm.obj=mod, pred.data=preddata.varprop.subset_pp, 
+#                                  off.set = offset.varprop.subset_pp, seglen.varname = "Effort", 
+#                                  type.pred = "response")
+# summary(dsm.var.subset_pp)
+# NB, il CV va moltiplicato per 100
+
+
+## ---- prediction and plot Nhat and uncertainty ----
+prediction.Nhat <- unlist(dsm.var.subset$pred)
+prediction.CV <- sqrt(dsm.var.subset$pred.var)/unlist(dsm.var.subset$pred)
+prediction.stdev <- sqrt(dsm.var.subset$pred.var)
+pp <- mutate(as.data.frame(preddata), Nhat = prediction.Nhat)
+pp.uncertainty <- mutate(pp, CV = prediction.CV, stdev = prediction.stdev)
+# plot Nhat
+pNhat <- ggplot(pp) +
+  geom_tile(aes(x=x, y=y, fill=Nhat, width=400, height=400)) +
+  scale_fill_distiller(palette = "YlGn", direction=2) +
+  #                      values = c(seq(0, 60, 60))) +
+  # scale_fill_distiller(palette = "YlGn", direction=2, trans = "log10", 
+  #                      name = "log10(Similarity)") +
+  labs(fill="Nhat") +
+  theme_minimal() +
+  coord_equal()
+print(pNhat)
+# plot CV
+# pCV <- ggplot(pp) +
+#   geom_tile(aes(x=x, y=y, fill=prediction.CV, width=100, height=100)) +
+#   labs(fill="CV") +
+#   theme_minimal() +
+#   coord_equal()
+# print(pCV)
+# plot SD
+pSD <- ggplot(pp) +
+  geom_tile(aes(x=x, y=y, fill=prediction.stdev, width=400, height=400)) +
+  labs(fill="SD") +
+  theme_minimal() +
+  coord_equal()
+print(pSD)
+
+pDens <- ggplot(pp) +
+  geom_tile(aes(x=x, y=y, fill=Nhat/0.160000, width=400, height=400)) +
+  scale_fill_distiller(palette = "YlGn", direction=2) +
+  #                      values = c(seq(0, 60, 60))) +
+  # scale_fill_distiller(palette = "YlGn", direction=2, trans = "log10", 
+  #                      name = "log10(Similarity)") +
+  labs(fill="density") +
+  theme_minimal() +
+  coord_equal()
+print(pDens)
+
+
+
+## ---- save abundance map for GIS ----
+# write.csv(pp,"DSMresults2015_grigio.csv")
+# write.csv(pp.uncertainty,"results/2020-02-14-DSMresults2015_grigio.csv")
+write.csv(pp,"output/2023-08-31-DSMresults_impala.csv")
+# write.csv(pp.uncertainty_pp,"results/2020-07-08-DSMresults2015_grigio_pp.csv") # per paper proprietà private
+# write.csv(pp_pp,"results/2020-02-14-DSMresults2015_grigio_pp.csv")
+
+pp.uncertainty <- read.csv("output/2023-07-08-DSMresults2015_grigio.csv")
+sum(pp.uncertainty$Nhat)
+```
+
+
+
+
+```{r}
+object = dsm.xy.var
+boxplot.coef = 1.5
+alpha=0.05
+
+sinfo$average.p.se <- (phatInterval(fitVU)[2])^2
+
+  # storage
+  sinfo <- list()
+  # save the alpha value for cis
+  sinfo$alpha <- alpha
+
+    ### analytical variance estimation (varprop and gam results)
+    sinfo$varprop <- object$var.prop
+    sinfo$saved <- object
+    sinfo$bootstrap <- object$bootstrap
+
+      # re run the variance calculation, putting everything together
+      pd <- c()
+      off <- c()
+      for(i in seq_len(length(object$pred.data))){
+        pd <- rbind(pd, object$pred.data[[i]])
+        off <- rbind(off, object$off.set[[i]])
+      }
+      object$pred.data <- pd
+      object$off.set <- as.vector(off)
+
+      if(object$var.prop){
+        var.prop <- dsm_var_prop(object$dsm.obj, object$pred.data,
+                                 object$off.set, object$seglen.varname,
+                                 object$type.pred)
+      }else{
+        var.prop <- dsm_var_gam(object$dsm.obj, object$pred.data,object$off.set,
+                                 object$seglen.varname, object$type.pred)
+      }
+
+      sinfo$se <- sqrt(var.prop$pred.var)
+      
+    # grab the predicted values
+    if(length(object$pred)>1){
+      sinfo$pred.est <- sum(unlist(object$pred), na.rm=TRUE)
+    }else{
+      sinfo$pred.est <- object$pred[[1]]
+    }
+
+    # if we're using variance propagation or there is no detection
+    # function, then the CV is fine
+{
+    # if we're just using the GAM variance, then we need to combine using
+    # the delta method
+      ddf.summary <- summary(object$dsm.object$ddf)
+
+      # setup everything to be multi-ddf compatible
+      ddf <- object$dsm.object$ddf
+      
+
+      sinfo$detfct.cv <- c()
+      cvp.sq <- 0
+      for(i in seq_along(ddf)){
+
+        this_ddf <- ddf[[i]]
+        if(all(class(this_ddf)!="fake_ddf")){
+          ddf.summary <- summary(this_ddf) # errore a questo punto, perché è una fake
+
+          this_cvp.sq <- (ddf.summary$average.p.se/
+                          ddf.summary$average.p)^2
+          cvp.sq <- cvp.sq + this_cvp.sq # mi serve il cv di phat che ho già di là
+        }else{
+          this_cvp.sq <- NA
+        }
+        sinfo$detfct.cv <- c(sinfo$detfct.cv, sqrt(this_cvp.sq))
+      }
+
+      sinfo$gam.cv <- sinfo$se/sinfo$pred.est
+
+      sinfo$cv <- sqrt(cvp.sq+sinfo$gam.cv^2)
+
+      # total se
+      sinfo$se <- sinfo$cv*sinfo$pred.est
+    }
+    if(sinfo$varprop){
+      sinfo$model.check <- object$model.check
+    }
+
+  }
+
+  class(sinfo) <- "summary.dsm.var"
+  return(sinfo)
+}
+```
+
+
+
+```{r}
+summary.dsm.var <- function(object, alpha=0.05, boxplot.coef=1.5,
+                            bootstrap.subregions=NULL, ...){
+
+  # storage
+  sinfo <- list()
+  # save the alpha value for cis
+  sinfo$alpha <- alpha
+
+  if(object$bootstrap){
+    # grab the predicted values
+    #mod1.pred <- dsm.predict(object$dsm.object,
+    #                         newdata=object$pred.data,
+    #                         off.set=object$off.set)
+    #sinfo$pred.est <- sum(mod1.pred,na.rm=TRUE)
+    sinfo$pred.est <- object$study.area.total[1]
+
+    sinfo$block.size <- object$block.size
+    sinfo$n.boot <- object$n.boot
+    sinfo$bootstrap <- TRUE
+    sinfo$ds.uncertainty <- object$ds.uncertainty
+
+    # bootstrap abundances
+    bootstrap.abund <- object$study.area.total
+
+    # when we don't need to do the delta method
+    if(any(class(object$dsm.object$ddf)=="fake_ddf") | object$ds.uncertainty){
+
+      # if we used detection function uncertainty
+      # or there was no detection function
+
+      # variance of the bootstrap abundances is the variance
+      trimmed.variance <- trim.var(bootstrap.abund[is.finite(bootstrap.abund)],
+                                   boxplot.coef=boxplot.coef)
+
+      sinfo$var <- trimmed.variance
+      sinfo$se <- sqrt(trimmed.variance)
+
+      sinfo$cv <- sinfo$se/sinfo$pred.est
+      # in this case bootstrap and regular CV are the same
+      sinfo$bootstrap.cv <- sinfo$cv
+    }else{
+      # delta method, if necessary
+      #  - if we didn't incorporate detection function uncertainty in bootstrap
+      #  - if there was a detection function
+
+      ddf.summary <- summary(object$dsm.object$ddf)
+
+      # average p standard error
+      sinfo$average.p.se <- ddf.summary$average.p.se
+      sinfo$average.p.se <- sinfo$average.p.se/4 # oggi
+      ddf.summary$average.p.se <- sinfo$average.p.se/4
+
+      ## calculate the variance via the delta method
+      # find the cv squared of the p
+      cvp.sq <- (ddf.summary$average.p.se/
+                 ddf.summary$average.p)^2
+      # save that
+      sinfo$detfct.cv <- sqrt(cvp.sq)
+
+      # save the s.e. of N from bootstrap
+      trimmed.variance <- trim.var(bootstrap.abund[is.finite(bootstrap.abund)],
+                                   boxplot.coef=boxplot.coef)
+      sinfo$N.bs.se <- sqrt(trimmed.variance)
+
+      # cv squared of the Ns from the bootstrap
+      cvNbs.sq <- (sinfo$N.bs.se/sinfo$pred.est)^2
+      # save that
+      sinfo$bootstrap.cv <- sqrt(cvNbs.sq)
+
+      # cv of N
+      cvN <- sqrt(cvp.sq + cvNbs.sq)
+      sinfo$cv <- cvN
+
+      # variance (delta method)
+      sinfo$var <- (cvN*sinfo$pred.est)^2
+      sinfo$se <- sqrt(sinfo$var)
+    }
+
+    ### general bootstrap stuff
+
+    # how many duds did we have?
+    sinfo$boxplot.coef <- boxplot.coef
+    sinfo$trim.prop <- attr(trimmed.variance, "trim.prop")
+    sinfo$trim.ind <- attr(trimmed.variance, "trim.ind")
+    sinfo$boot.outliers <- attr(trimmed.variance, "outliers")
+    sinfo$boot.infinite <- sum(is.infinite(bootstrap.abund))
+    sinfo$boot.finite <- sum(!is.infinite(bootstrap.abund))
+    sinfo$boot.NA <- sum(is.na(bootstrap.abund))
+    sinfo$boot.NaN <- sum(is.nan(bootstrap.abund))
+    sinfo$boot.usable <- sinfo$boot.finite - (sinfo$boot.outliers +
+                         sinfo$boot.infinite + sinfo$boot.NA + sinfo$boot.NaN)
+
+    # grab the %ile c.i.s at alpha, 1-alpha and also median
+    sinfo$quantiles <- quantile(bootstrap.abund[sinfo$trim.ind],
+                                c(alpha, 0.5, 1-alpha),
+                                na.rm=TRUE)
+    attr(sinfo$quantiles, "names")[2] <- "Median"
+
+
+    ### subregions...
+    if(!is.null(bootstrap.subregions)){
+      # to do the subregions, we just recurse back into this routine
+      # each time we just restrict the data to those specified by
+      # the corresponding entry in bootstrap.subregions
+
+      subregions <- list()
+      i<-1
+
+      for(region.ind in bootstrap.subregions){
+        # setup the subregion object
+        this.object <- object
+        this.object$short.var <- NULL
+        this.object$study.area.total <- object$study.area.total[region.ind]
+        this.object$pred.data <- object$pred.data[region.ind,]
+
+        # summarise and store region i
+        subregions[[i]] <- summary(this.object)
+        i<-i+1
+      }
+      sinfo$subregions<-subregions
+    }
+
+  }else{
+  ### analytical variance estimation (varprop and gam results)
+    sinfo$varprop <- object$var.prop
+    sinfo$saved <- object
+    sinfo$bootstrap <- object$bootstrap
+
+    # what if we had multiple areas (ie this is from a CV plot?)
+    if(all(dim(as.matrix(object$pred.var))==1)){
+      sinfo$se <- sqrt(object$pred.var)
+    }else{
+      # re run the variance calculation, putting everything together
+      pd <- c()
+      off <- c()
+      for(i in seq_len(length(object$pred.data))){
+        pd <- rbind(pd, object$pred.data[[i]])
+        off <- rbind(off, object$off.set[[i]])
+      }
+      object$pred.data <- pd
+      object$off.set <- as.vector(off)
+
+      if(object$var.prop){
+        var.prop <- dsm_var_prop(object$dsm.obj, object$pred.data,
+                                 object$off.set, object$seglen.varname,
+                                 object$type.pred)
+      }else{
+        var.prop <- dsm_var_gam(object$dsm.obj, object$pred.data,object$off.set,
+                                 object$seglen.varname, object$type.pred)
+      }
+
+      sinfo$se <- sqrt(var.prop$pred.var)
+    }
+    # grab the predicted values
+    if(length(object$pred)>1){
+      sinfo$pred.est <- sum(unlist(object$pred), na.rm=TRUE)
+    }else{
+      sinfo$pred.est <- object$pred[[1]]
+    }
+
+    # if we're using variance propagation or there is no detection
+    # function, then the CV is fine
+    if(sinfo$varprop | any(class(object$dsm.object$ddf)=="fake_ddf")){
+      # calculate the CV
+      sinfo$cv <- sinfo$se/sinfo$pred.est
+    }else{
+    # if we're just using the GAM variance, then we need to combine using
+    # the delta method
+      ddf.summary <- summary(object$dsm.object$ddf)
+
+      # setup everything to be multi-ddf compatible
+      if(!any(class(object$dsm.object$ddf)=="list")){
+        ddf <- list(object$dsm.object$ddf)
+      }else{
+        ddf <- object$dsm.object$ddf
+      }
+
+      sinfo$detfct.cv <- c()
+      cvp.sq <- 0
+      for(i in seq_along(ddf)){
+
+        this_ddf <- ddf[[i]]
+        if(all(class(this_ddf)!="fake_ddf")){
+          ddf.summary <- summary(this_ddf)
+
+          this_cvp.sq <- (ddf.summary$average.p.se/
+                          ddf.summary$average.p)^2
+          cvp.sq <- cvp.sq + this_cvp.sq
+        }else{
+          this_cvp.sq <- NA
+        }
+        sinfo$detfct.cv <- c(sinfo$detfct.cv, sqrt(this_cvp.sq))
+      }
+
+      sinfo$gam.cv <- sinfo$se/sinfo$pred.est
+
+      sinfo$cv <- sqrt(cvp.sq+sinfo$gam.cv^2)
+
+      # total se
+      sinfo$se <- sinfo$cv*sinfo$pred.est
+    }
+    if(sinfo$varprop){
+      sinfo$model.check <- object$model.check
+    }
+
+  }
+
+  class(sinfo) <- "summary.dsm.var"
+  return(sinfo)
+}
+```
+
+
+
+
+```{r}
+vis.gam(fit, plot.type="contour", view=c("x","y"), asp=1, type="response", contour.col="black", n.grid=400)
+```
+
+```{r}
+gam.check(fit)
+```
+
+
+
+
+
+
+```{r}
+# dsm_temp <- 
+# function (formula, ddf.obj, segment.data, observation.data, engine = "gam", 
+#     convert.units = 1, family = quasipoisson(link = "log"), group = FALSE, 
+#     control = list(keepData = TRUE), availability = 1, segment.area = NULL, 
+#     weights = NULL, method = "REML", ...) {
+#     stopifnot(engine %in% c("gam", "bam", "glm", "gamm"))
+#     if (is.null(ddf.obj)) {
+#         stop("NULL detection functions no longer supported, see ?dummy_ddf")
+#     }
+#     if (all(class(ddf.obj) != "list")) {
+#         if (all(class(ddf.obj) == "dsmodel")) {
+#             ddf.obj <- ddf.obj$ddf
+#         }
+#     } else {
+#         if (length(ddf.obj) == 1) {
+#             ddf.obj <- ddf.obj[[1]]
+#         }
+#         for (i in seq_along(ddf.obj)) {
+#             if (all(class(ddf.obj[[i]]) == "dsmodel")) {
+#                 ddf.obj[[i]] <- ddf.obj[[i]]$ddf
+#             }
+#         }
+#     }
+    response <- as.character(formula)[2]
+    if (response %in% c("presence", "D", "density", "Dhat", "N", 
+        "Nhat", "n")) {
+        stop(paste("Response", response, "is deprecated, see ?dsm for details."))
+    }
+    possible.responses <- c("density.est", "count", "abundance.est")
+    if (!(response %in% possible.responses)) {
+        stop(paste("Model must be one of:", paste(possible.responses, 
+            collapse = ", ")))
+    }
+    check.cols(ddf.obj, segment.data, observation.data, segment.area)
+    # dat <- make.data_vlm(response, ddf.obj, segment.data, observation.data, 
+    #     group, convert.units, availability, segment.area, family)
+    dat <- dat
+    
+    if (!(response %in% c("density.est"))) {
+        formula <- as.formula(paste(c(as.character(formula)[c(2, 
+            1, 3)], "+ offset(off.set)"), collapse = ""))
+    } else {
+        if (is.null(weights)) {
+            weights <- dat$segment.area
+        } else if (length(weights) == 1) {
+            weights <- rep(weights, nrow(dat))
+        }
+    }
+    if (engine == "gamm" && dsm_env$old_mgcv) {
+        message("You are using mgcv version < 1.7-24, please update to at least 1.7-24 to avoid fitting problems.")
+    }
+    
+    if (engine %in% c("glm", "gamm")) {
+        control$keepData <- NULL
+    }
+    args <- list(formula = abundance.est ~ s(x, y) + offset(off.set),
+                 # family = tw(), data = dat, 
+                 family = quasipoisson(link="log"), data = dat,
+                 weights = NULL, control = list(keepData = TRUE), method = method)
+    if (engine == "glm") {
+        args$method <- NULL
+    }
+    fit <- withCallingHandlers(do.call(engine, args), warning = "matrixnotposdef.handler")
+    # if ("knots" %in% names(match.call())) {
+    #     fit$knots <- get(as.character(match.call()$knots))
+    # }
+    # if (engine == "gamm") {
+    #     fit$gam$ddf <- ddf.obj
+    #     fit$gam$data <- dat
+    #     fit$gam$gamm.call.list <- list(formula = formula, family = family, 
+    #         data = dat, control = control)
+    # } else {
+    #     fit$ddf <- ddf.obj
+    # }
+    # class(fit) <- c("dsm", class(fit))
+#     return(fit)
+# }
+summary(fit)
+```
+
+```{r}
+# dsm.xy <- dsm_temp(abundance.est~s(x,y), ddf.obj=fitVU, unique(segdata), obsdata, method="REML")
+# summary(dsm.xy)
+```
+
+
+
+
+
+
+```{r}
+# Here we define a convenience function to generate an appropriate data structure for ggplot2 to plot:
+
+# given the argument fill (the covariate vector to use as the fill) and a name,
+# return a geom_polygon object
+# fill must be in the same order as the polygon data
+grid_plot_obj <- function(fill, name, sp){
+
+  # what was the data supplied?
+  names(fill) <- NULL
+  row.names(fill) <- NULL
+  data <- data.frame(fill)
+  names(data) <- name
+
+  spdf <- SpatialPolygonsDataFrame(sp, data)
+  spdf@data$id <- rownames(spdf@data)
+  spdf.points <- fortify(spdf, region="id")
+  spdf.df <- join(spdf.points, spdf@data, by="id")
+
+  # seems to store the x/y even when projected as labelled as
+  # "long" and "lat"
+  spdf.df$x <- spdf.df$long
+  spdf.df$y <- spdf.df$lat
+
+  geom_polygon(aes_string(x="x",y="y",fill=name, group="group"), data=spdf.df)
+}
+```
+
+
+
+
+```{r}
+
+data.frame(dsm.xy.pred) -> p1
+
+
+ggplot(data.frame(dsm.xy.pred), aes(dsm.xy.pred)) +
+  geom_point()
+
+# We use the grid_plot_obj helper function to assign the predictions to grid cells (polygons):
+
+p <- ggplot() + grid_plot_obj(dsm.xy.pred, "Abundance", pred.polys) + coord_equal() +gg.opts
+p <- p + geom_path(aes(x=x, y=y),data=survey.area)
+p <- p + labs(fill="Abundance")
+print(p)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

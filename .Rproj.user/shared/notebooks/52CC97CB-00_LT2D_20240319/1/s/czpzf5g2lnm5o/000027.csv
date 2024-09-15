@@ -1,0 +1,5 @@
+"0","data.frame(m = 1:params$n_models, modAIC = AICvalues) -> df.AIC"
+"0","df.AIC %>% "
+"0","  arrange(modAIC) %>% "
+"0","  filter(modAIC <= min(df.AIC$modAIC) + 2) -> tab.AIC"
+"0","tab.AIC"

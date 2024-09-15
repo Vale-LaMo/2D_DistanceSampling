@@ -1,0 +1,32 @@
+{
+    "id": "951C16FA",
+    "path": "~/GitHub/2D_DistanceSampling/01_dsm_20240307.Rmd",
+    "project_path": "01_dsm_20240307.Rmd",
+    "type": "r_markdown",
+    "hash": "2506280152",
+    "contents": "",
+    "dirty": false,
+    "created": 1699900710877.0,
+    "source_on_save": false,
+    "relative_order": 3,
+    "properties": {
+        "source_window_id": "",
+        "Source": "Source",
+        "cursorPosition": "8,30",
+        "scrollLine": "0",
+        "chunk_output_type": "inline",
+        "rmdVisualMode": "false",
+        "rmdVisualCollapsedChunks": "",
+        "rmdVisualModeLocation": "477:958",
+        "rmdVisualWrapConfigured": "true",
+        "docOutlineVisible": "1"
+    },
+    "folds": "",
+    "lastKnownWriteTime": 1716081961,
+    "encoding": "UTF-8",
+    "collab_server": "",
+    "source_window": "",
+    "last_content_update": 1716081961492,
+    "read_only": false,
+    "read_only_alternatives": []
+}

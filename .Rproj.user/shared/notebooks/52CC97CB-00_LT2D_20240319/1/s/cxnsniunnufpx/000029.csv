@@ -1,0 +1,2 @@
+"0","fitVU = FIT[[best_mod$m]]"
+"0","save(fitVU, file = paste(""output/fitVU_"", params$species_name, "".RData"", sep = """"), compress = FALSE)"

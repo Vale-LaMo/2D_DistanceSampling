@@ -1,0 +1,6 @@
+"0","obsdata <- read_excel(paste(""data/"",params$obsdata_file,sep=""""),"
+"0","                      #sheet=""template_dataset"","
+"0","                      col_types = c(""numeric"","
+"0","                                    ""text"","
+"0","                                    rep(""numeric"", 3)))"
+"0","head(obsdata)"
