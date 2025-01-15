@@ -412,72 +412,84 @@ dsm_mod <-
 summary.dsm.var_mod <- 
   
   function(object, detfunc, alpha=0.05, boxplot.coef=1.5,
-           bootstrap.subregions=NULL, fName = "h.RE"){
+                                 bootstrap.subregions=NULL, fName = "h.RE"){
+  
+  # storage
+  sinfo <- list()
+  # save the alpha value for cis
+  sinfo$alpha <- alpha
+  
+  ### analytical variance estimation (varprop and gam results)
+  sinfo$varprop <- object$var.prop
+  sinfo$saved <- object
+  sinfo$bootstrap <- object$bootstrap
+  
+  # re run the variance calculation, putting everything together
+  pd <- c()
+  off <- c()
+  for(i in seq_len(length(object$pred.data))){
+    pd <- rbind(pd, object$pred.data[[i]])
+    off <- rbind(off, object$off.set[[i]])
+  }
+  object$pred.data <- pd
+  object$off.set <- as.vector(off)
+  
+  if(object$var.prop){
+    var.prop <- dsm_var_prop(object$dsm.obj, object$pred.data,
+                             object$off.set, object$seglen.varname,
+                             object$type.pred)
+  } else {
+    var.prop <- dsm_var_gam(object$dsm.obj, object$pred.data,object$off.set,
+                            object$seglen.varname, object$type.pred)
+  }
+  
+  sinfo$se <- sqrt(var.prop$pred.var)
+  
+  # grab the predicted values
+  if(length(object$pred)>1) {
+    sinfo$pred.est <- sum(unlist(object$pred), na.rm=TRUE)
+  } else {
+    sinfo$pred.est <- object$pred[[1]]
+  }
+  
+  # if we're just using the GAM variance, then we need to combine using
+  # the delta method
+  
+  # setup everything to be multi-ddf compatible
+  ddf <- object$dsm.object$ddf
+  
+  sinfo$detfct.cv <- c() #(phatInterval(detfunc)[2])[[1]]
+  cvp.sq <- 0
+  for(i in seq_along(ddf)) {
     
-    # storage
-    sinfo <- list()
-    # save the alpha value for cis
-    sinfo$alpha <- alpha
-    
-    ### analytical variance estimation (varprop and gam results)
-    sinfo$varprop <- object$var.prop
-    sinfo$saved <- object
-    sinfo$bootstrap <- object$bootstrap
-    
-    # re run the variance calculation, putting everything together
-    pd <- c()
-    off <- c()
-    for(i in seq_len(length(object$pred.data))){
-      pd <- rbind(pd, object$pred.data[[i]])
-      off <- rbind(off, object$off.set[[i]])
-    }
-    object$pred.data <- pd
-    object$off.set <- as.vector(off)
-    
-    if(object$var.prop){
-      var.prop <- dsm_var_prop(object$dsm.obj, object$pred.data,
-                               object$off.set, object$seglen.varname,
-                               object$type.pred)
-    } else {
-      var.prop <- dsm_var_gam(object$dsm.obj, object$pred.data,object$off.set,
-                              object$seglen.varname, object$type.pred)
-    }
-    
-    sinfo$se <- sqrt(var.prop$pred.var)
-    
-    # grab the predicted values
-    if(length(object$pred)>1) {
-      sinfo$pred.est <- sum(unlist(object$pred), na.rm=TRUE)
-    } else {
-      sinfo$pred.est <- object$pred[[1]]
-    }
-    
-    # if we're just using the GAM variance, then we need to combine using
-    # the delta method
-    
-    
-    sinfo$detfct.cv <- (phatInterval(detfunc)[2])[[1]] # c()
-    cvp.sq <- sinfo$detfct.cv^2
-    cvp.sq <- 0
-    
-    this_ddf <- ddf
+    this_ddf <- ddf[[i]]
+    # if(all(class(this_ddf)!="fake_ddf")){
+    #   ddf.summary <- summary(this_ddf)
+    #
+    # this_cvp.sq <- (ddf.summary$average.p.se/
+    #                   ddf.summary$average.p)^2
     this_cvp.sq <- ((phatInterval(detfunc)[2])[[1]])^2
     cvp.sq <- cvp.sq + this_cvp.sq
+    # }else{
+    # this_cvp.sq <- NA
+    # }
+    # sinfo$detfct.cv <- c(sinfo$detfct.cv, sqrt(this_cvp.sq))
     sinfo$detfct.cv <- c(sqrt(this_cvp.sq))
-      
+    # }
+    
     sinfo$gam.cv <- sinfo$se/sinfo$pred.est
     
     sinfo$cv <- sqrt(cvp.sq+sinfo$gam.cv^2)
     
     # total se
     sinfo$se <- sinfo$cv*sinfo$pred.est
-    
+    # }
     if(sinfo$varprop) {
       sinfo$model.check <- object$model.check
     }
     
-    
-    
-    class(sinfo) <- "summary.dsm.var"
-    return(sinfo)
   }
+  
+  class(sinfo) <- "summary.dsm.var"
+  return(sinfo)
+}
