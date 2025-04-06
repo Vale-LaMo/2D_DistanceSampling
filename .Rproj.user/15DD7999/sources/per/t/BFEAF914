@@ -3,7 +3,7 @@
     "path": "~/GitHub/2D_DistanceSampling/functions/plotfit.x.red.R",
     "project_path": "functions/plotfit.x.red.R",
     "type": "r_source",
-    "hash": "938847290",
+    "hash": "2017667439",
     "contents": "",
     "dirty": false,
     "created": 1721031037420.0,
@@ -16,11 +16,11 @@
         "scrollLine": "0"
     },
     "folds": "",
-    "lastKnownWriteTime": 1716069273,
+    "lastKnownWriteTime": 1724698472,
     "encoding": "UTF-8",
     "collab_server": "",
     "source_window": "",
-    "last_content_update": 1716069273,
+    "last_content_update": 1724698472,
     "read_only": false,
     "read_only_alternatives": []
 }
